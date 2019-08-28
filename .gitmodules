@@ -1,0 +1,4 @@
+[submodule "Slab"]
+	path = Slab
+	url = https://github.com/columna1/Slab
+	branch = master

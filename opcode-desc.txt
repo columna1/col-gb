@@ -47,7 +47,12 @@ ifnz :if (band(self.F,0x80) == 0) then
 ifz :if (band(self.F,0x80) > 0) then
 incCyc :cycles = cycles + %
 
-cpfunct : local temp = %1 - %2 ; self.F = temp<0 and 0x50 or 0x40 ; temp = band(temp,0xff); if temp == 0 then self.F = bor(self.F,0x80) end if band(xor(xor(%1,%2),temp),0x10)>0 then self.F = bor(self.F,0x20) end
+cpfunct : local temp = %1 - %2 ; self.F = temp<0 and 0x50 or 0x40
+
+
+
+
+; temp = band(temp,0xff); if temp == 0 then self.F = bor(self.F,0x80) end if band(xor(xor(%1,%2),temp),0x10)>0 then self.F = bor(self.F,0x20) end
 
 #debug
 print :print(%)
