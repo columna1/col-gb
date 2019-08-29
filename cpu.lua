@@ -37,6 +37,7 @@ local function CPU()
 		SP = 0,
 		PC = 0,
 		cycles = 0,
+		instructionsExecuted = 0,
 		mem = {}
 	}
 	cycles = 0
@@ -80,6 +81,7 @@ local function CPU()
 		end
 		print = pr
 		self.cycles = cycles
+		self.instructionsExecuted = self.instructionsExecuted + 1
 	end
 	
 	function self.runInstruction(inst)

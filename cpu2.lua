@@ -37,6 +37,7 @@ local function CPU()
 		SP = 0,
 		PC = 0,
 		cycles = 0,
+		instructionsExecuted = 0,
 		mem = {}
 	}
 	cycles = 0
@@ -600,6 +601,7 @@ function() error("unimplemented 0xCB instruction 255(0xff)") end,--[255 0xff]
 		end
 		print = pr
 		self.cycles = cycles
+		self.instructionsExecuted = self.instructionsExecuted + 1
 	end
 	
 	function self.runInstruction(inst)

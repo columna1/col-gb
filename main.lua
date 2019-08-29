@@ -1,6 +1,29 @@
 local Slab = require("Slab.Slab")
 local json = require("cjson")
 
+--[[
+ideas
+
+RESET BUTTON!
+
+I have a list of instructions, how long they take, and what flags they
+affect. Maybe I could use that to improve the code generator and make things
+easier for the programmer.
+
+code generator is a mess, come up with better ideas.
+
+possibly create a test based on a different emulator?
+aka run an emulator, log everything and compare to find
+differences. (jsgb seems pretty hackable)
+
+Windows I want to add:
+add memory/device registers.
+GPU debug (tile sets, sprites, buffers)
+game window
+memory value watch window(persistant?)
+breakpoints (persistant)
+]]
+
 function string.split (str,sep)
 	if type(str)=="number" or type(str)=="boolean" then
 		str = tostring(str) -- Convert the bad object to a string.
@@ -41,7 +64,7 @@ function loveload(args)
 	local out,out2 = gen("opcode-desc.txt")
 	--print("DONE")
 	--print(out)
-	--[[
+	
 	file = io.open("cpu.lua","r")
 	dat = file:read("*a")
 	--print(out)
@@ -50,7 +73,7 @@ function loveload(args)
 	file:close()
 	file = io.open("cpu2.lua","w")
 	file:write(dat)
-	file:close()]]--
+	file:close()
 	local cpu = require("cpu2")
 	
 	gbCPU = cpu()
@@ -67,15 +90,62 @@ function loveload(args)
 	memoff = 0
 	follow = false
 	cstep = 1337
+	breakPointList = {}
+	
+	canvas = love.graphics.newCanvas(160,144)
+	canvas:setFilter("linear","nearest")
+	love.graphics.setCanvas(canvas)
+	love.graphics.clear({0,0.5,0.2})
+	love.graphics.circle("fill",50,50,10)
+	love.graphics.setCanvas()
+	angle = 0
 end
 
 function loveupdate(dt)
+	angle = angle + dt*3
+	
+	love.graphics.setCanvas(canvas)
+	love.graphics.clear({0,0.5,0.2})
+	local ofst = 30
+	local xo,yo = math.sin(angle)*ofst,math.cos(angle)*ofst
+	love.graphics.circle("fill",50+xo,50+yo,10)
+	love.graphics.setCanvas()
+	
 	love.window.setTitle(love.timer.getFPS().." FPS")
 	Slab.Update(dt)
 	
 	if brkwin then
-		Slab.BeginWindow("brk",{Title="Break points",X=875})
-			Slab.Text("WIP")
+		Slab.BeginWindow("brk",{Title="Break points",X=875})--,AllowResize = true,AutoSizeWindow = false})
+			Slab.Text("Input addresses seperated by commas or newlines")
+			--Slab.Text(string.format("0x%02x",gbCPU.PC))
+			if Slab.Input("bp",{MultiLine = true,Highlight = {[string.format("0x%02x",gbCPU.PC)]={0.2,0.9,0.2},["test"] = {1,0,0}},H = 200,W = 225,SelectOnFocus = false}) then
+				local txt = Slab.GetInputText()
+				txt = txt:gsub("\n",",")
+				local lst = txt:split(",")
+				local n = 0
+				breakPointList = {}
+				for b = 1,#lst do
+					if tonumber(lst[b]) then
+						breakPointList[tonumber(lst[b])] = true
+						n = n + 1
+					end
+				end
+				breakPointList.num = n
+			end
+			Slab.SameLine()
+			if Slab.Button("Next") then
+				--step until breakpoint
+				if breakPointList.num and breakPointList.num > 0 then
+					for _ = 1,1000000 do
+						gbCPU.executeInstruction()
+						if breakPointList[gbCPU.PC] == true then
+							break
+						end
+					end
+				end
+			end
+			--Slab.Image("game",{Image = canvas,Scale = 2})
+			
 		Slab.EndWindow()
 	end
 	
@@ -128,7 +198,8 @@ function loveupdate(dt)
 				arg = name:sub(s+1):split(",")
 				--print(arg[1],arg[2])
 				local off = 1
-				for r = 1,#arg do
+				sinst = sinst..arg[1]..","
+				for r = 2,#arg do
 					a = string.lower(arg[r])
 					--print(a)
 					if a == "a" then
@@ -150,7 +221,8 @@ function loveupdate(dt)
 					elseif a == "sp" then
 						sinst = sinst..gbCPU.SP
 					elseif a == "u8" then
-						sinst = sinst..gbCPU.mem[gbCPU.PC+off]
+						print(gbCPU.PC,off,sinst)
+						sinst = sinst..gbCPU.mem.getByte(gbCPU.PC+off)
 						off = off + 1
 					elseif a == "u16" then
 						sinst = sinst..gbCPU.mem.getByte(gbCPU.PC+off) + bit.lshift(gbCPU.mem.getByte(gbCPU.PC+off+1),8)
@@ -174,12 +246,12 @@ function loveupdate(dt)
 	end
 	
 	if memwin then
-		Slab.BeginWindow('mem', {Title = "Memory",X = 250})
+		Slab.BeginWindow('mem', {Title = "Memory",X = 275})
 			Slab.Text("Offset")
 			Slab.SameLine()
-			if follow then memoff = math.floor(gbCPU.PC/16)*16 end
+			if follow then memoff = math.min(math.floor(gbCPU.PC/16)*16,0xFF00) end
 			if Slab.Input("offs",{ReturnOnText = false,W=80,Text = tostring(memoff),ReadOnly = follow}) then
-				memoff = math.floor(Slab.GetInputNumber()/16)*16
+				memoff = math.min(math.floor(Slab.GetInputNumber()/16)*16,0xFF00)
 			end
 			Slab.SameLine()
 			if Slab.CheckBox(follow, "Follow PC",{Tooltip = "Makes sure PC is always in view"}) then
@@ -220,43 +292,43 @@ function loveupdate(dt)
 	end
 	
 	if cpuwin then
-		Slab.BeginWindow('cpu', {Title = "Cpu Debug"})
-			Slab.Text(string.format("A 0x%x(%d)",gbCPU.A,gbCPU.A) )
+		Slab.BeginWindow('cpu', {Title = "Cpu Debug",X = 20})
+			Slab.Text(string.format("A 0x%02x(%d)",gbCPU.A,gbCPU.A) )
 			Slab.SameLine()
 			if Slab.Input("A",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.A)}) then
 				gbCPU.A = Slab.GetInputNumber()
 			end
-			Slab.Text(string.format("B 0x%x(%d)",gbCPU.B,gbCPU.B) )
+			Slab.Text(string.format("B 0x%02x(%d)",gbCPU.B,gbCPU.B) )
 			Slab.SameLine()
 			if Slab.Input("B",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.B)}) then
 				gbCPU.B = Slab.GetInputNumber()
 			end
-			Slab.Text(string.format("C 0x%x(%d)",gbCPU.C,gbCPU.C) )
+			Slab.Text(string.format("C 0x%02x(%d)",gbCPU.C,gbCPU.C) )
 			Slab.SameLine()
 			if Slab.Input("C",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.C)}) then
 				gbCPU.C = Slab.GetInputNumber()
 			end
-			Slab.Text(string.format("D 0x%x(%d)",gbCPU.D,gbCPU.D) )
+			Slab.Text(string.format("D 0x%02x(%d)",gbCPU.D,gbCPU.D) )
 			Slab.SameLine()
 			if Slab.Input("D",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.D)}) then
 				gbCPU.D = Slab.GetInputNumber()
 			end
-			Slab.Text(string.format("E 0x%x(%d)",gbCPU.E,gbCPU.E) )
+			Slab.Text(string.format("E 0x%02x(%d)",gbCPU.E,gbCPU.E) )
 			Slab.SameLine()
 			if Slab.Input("E",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.E)}) then
 				gbCPU.E = Slab.GetInputNumber()
 			end
-			Slab.Text(string.format("H 0x%x(%d)",gbCPU.H,gbCPU.H) )
+			Slab.Text(string.format("H 0x%02x(%d)",gbCPU.H,gbCPU.H) )
 			Slab.SameLine()
 			if Slab.Input("H",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.H)}) then
 				gbCPU.H = Slab.GetInputNumber()
 			end
-			Slab.Text(string.format("L 0x%x(%d)",gbCPU.L,gbCPU.L) )
+			Slab.Text(string.format("L 0x%02x(%d)",gbCPU.L,gbCPU.L) )
 			Slab.SameLine()
 			if Slab.Input("L",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.L)}) then
 				gbCPU.L = Slab.GetInputNumber()
 			end
-			Slab.Text("F "..gbCPU.F)
+			Slab.Text(string.format("F 0x%02x(%d)",gbCPU.F,gbCPU.F) )
 			Slab.SameLine()
 			if Slab.Input("F",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.F)}) then
 				gbCPU.F = Slab.GetInputNumber()
@@ -284,17 +356,19 @@ function loveupdate(dt)
 				if not c then gbCPU.F = bor(gbCPU.F,0x10) else gbCPU.F = band(gbCPU.F,0xEF) end
 			end
 			
-			Slab.Text(string.format("SP 0x%x(%d)",gbCPU.SP,gbCPU.SP))
+			Slab.Text(string.format("SP 0x%04x(%d)",gbCPU.SP,gbCPU.SP))
 			Slab.SameLine()
 			if Slab.Input("SP",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.SP)}) then
 				gbCPU.SP = Slab.GetInputNumber()
 			end
-			Slab.Text("PC "..gbCPU.PC..string.format(" 0x%x",gbCPU.PC))
+			Slab.Text("PC "..string.format("0x%04x",gbCPU.PC).."("..gbCPU.PC..")")
 			Slab.SameLine()
 			if Slab.Input("PC",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.PC)}) then
 				gbCPU.PC = Slab.GetInputNumber()
 			end
-			Slab.Text("cycles "..gbCPU.cycles)
+			local hz = 4.194304*1000000
+			Slab.Text("Cpu cycles "..gbCPU.cycles)
+			Slab.Text("("..string.format("%.4f",gbCPU.cycles/hz)..")seconds")
 			if Slab.Button("Step",{W = 40,H = 18}) then
 				gbCPU.executeInstruction(true)
 			end
@@ -322,6 +396,7 @@ function loveupdate(dt)
 			if Slab.Input("custom",{ReturnOnText = false, W = 80, Text = tostring(cstep)}) then
 				cstep = Slab.GetInputNumber()
 			end
+			Slab.Text("Instructions: "..gbCPU.instructionsExecuted)
 		Slab.EndWindow()
 	end
 	
@@ -375,6 +450,7 @@ function lovedraw()
 	end
 	]]
 	Slab.Draw()
+	--love.graphics.draw(canvas)
 end
 
 local curBreakPoint = -1
@@ -383,6 +459,7 @@ local curBreakPoint = -1
 
 
 function love.keypressed(k)
+	--print(k)
 	return--[[
 	if k == "space" then
 		--print("executing instruction")
