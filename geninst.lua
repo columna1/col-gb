@@ -29,6 +29,7 @@ local function gen(file)
 	for line in f:lines() do
 		--check for state change
 		--print(line)
+		line = line:gsub(string.char(13),"")
 		if line:sub(#line) == "." then
 			--state change
 			state = line:sub(1,#line-1)
@@ -339,14 +340,14 @@ local function gen(file)
 			--print(out)
 			output = output.."function() "..out.." end,--["..i .." 0x"..string.format("%x",i).."]\n"
 		else
-			output = output.."function() error(\"unimplemented instruction "..i.."(0x"..string.format("%x",i)..")".."\") end,--["..i .." 0x"..string.format("%x",i).."]\n"
+			output = output.."function() error(\"unimplemented instruction "..i.."(0x"..string.format("%x",i)..")".." at PC: \"..self.PC) end,--["..i .." 0x"..string.format("%x",i).."]\n"
 		end
 	end
 	output = output.."}"
 	
-	output2 = output2.."instructionsCB =  {\nfunction() cycles = cycles + 4 end,--no-op [0]\n"
+	output2 = output2.."instructionsCB =  {\n"
 	
-	for i = 1,255 do
+	for i = 0,255 do
 		if ops2[i] then
 			local out = ""
 			local clocks = ops2[i].cycles

@@ -1,5 +1,6 @@
 local Slab = require("Slab.Slab")
-local json = require("cjson")
+--local json = require("cjson")
+local json = require("json")
 
 --[[
 ideas
@@ -23,6 +24,29 @@ game window
 memory value watch window(persistant?)
 breakpoints (persistant)
 ]]
+
+function printTable(tabl, wid)
+	if not wid then wid = 1 end
+	for i,v in pairs(tabl) do
+		--if type(i) == "number" then if i >= 1000 then break end end
+		if type(v) == "table" then
+			print(string.rep(" ", wid * 3) .. i .. " = {")
+			printTable(v, wid + 1)
+			print(string.rep(" ", wid * 3) .. "}")
+		elseif type(v) == "string" then
+			print(string.rep(" ", wid * 3) .. i .. " = \"" .. v .. "\"")
+		elseif type(v) == "number" then
+			print(string.rep(" ", wid * 3) .. "[" .. i .. "] = " .. v..",")
+			if v == nil then error("nan") end
+		end 
+	end 
+end
+
+--rdat = io.open("record.json","r")
+--rec = rdat:read("*a")
+--rdat:close()
+--record = json.decode(rec)
+--printTable(record[1])
 
 function string.split (str,sep)
 	if type(str)=="number" or type(str)=="boolean" then
@@ -85,12 +109,22 @@ function loveload(args)
 	Slab.PushFont(consolas)
 	cpuwin = true
 	memwin = true
+	stackwin = true
 	dbgwin = true
 	brkwin = true
+	gpuwin = true
+	timerwin = true
+	tilewin = true
+	canwin = true
+	lcdwin = true
+	countwin = true
 	memoff = 0
 	follow = false
 	cstep = 1337
 	breakPointList = {}
+	
+	running = false
+	
 	
 	canvas = love.graphics.newCanvas(160,144)
 	canvas:setFilter("linear","nearest")
@@ -99,9 +133,30 @@ function loveload(args)
 	love.graphics.circle("fill",50,50,10)
 	love.graphics.setCanvas()
 	angle = 0
+	
+	tiles1 = love.graphics.newCanvas(8*16,8*24)
+	canvas1 = love.graphics.newCanvas(32*8,32*8)
+	lcdCanvas = love.graphics.newCanvas(160,144)
+	Slab.DisableDocks{"Left","Right","Bottom"}
+	count = 0
+	
+	epicLog = io.open("Blargg2.txt","r")
+	
+	instToBeRun = ""
+	
 end
 
 function loveupdate(dt)
+
+	--4194304hz
+	if running then
+		targetCycles = 4194304*(dt/2)
+		startCycles = gbCPU.cycles
+		while gbCPU.cycles-startCycles < targetCycles do
+			gbCPU.executeInstruction()
+		end
+	end
+
 	angle = angle + dt*3
 	
 	love.graphics.setCanvas(canvas)
@@ -114,12 +169,166 @@ function loveupdate(dt)
 	love.window.setTitle(love.timer.getFPS().." FPS")
 	Slab.Update(dt)
 	
+	function drawTile(t,offx,offy)
+		for y = 1,8 do
+			for x = 1,8 do
+				if t then
+					local c = t[y-1][x-1]
+					if c == 0 then
+						love.graphics.setColor(1,1,1)
+					elseif c == 1 then
+						love.graphics.setColor(0.6,0.6,0.6)
+					elseif c == 2 then
+						love.graphics.setColor(0.3,0.3,0.3)
+					elseif c == 3 then
+						love.graphics.setColor(0,0,0)
+					end
+					love.graphics.points(x+offx,y+offy)
+				end
+			end
+		end
+		--print(offx,offy)
+	end
+	--print(bit.band(0,0xFF))
+	--print(bit.band(-1,0xFF))
+	
+	if lcdwin then
+		love.graphics.setCanvas(lcdCanvas)
+		love.graphics.clear({0.5,0.3,0.3})
+		for x = 0,159 do
+			for y = 0,143 do
+				c = gbCPU.gpu.scrdata[x][y]
+				if c then
+					love.graphics.setColor(gbCPU.gpu.palette[c])
+					love.graphics.points(x,y)
+				end
+			end
+		end
+		love.graphics.setCanvas()
+		
+		Slab.BeginWindow("lcd",{Title="LCD",Y = 195, DisableDocks = {"Left","Right","Bottom"}})--,AllowResize = true,AutoSizeWindow = false})
+			Slab.Image("img",{Image = lcdCanvas,Scale = 1})
+		Slab.EndWindow()
+	end
+	
+	if canwin then --gpu canvas view https://gbdev.io/pandocs/Tile_Maps.html
+		Slab.BeginWindow("can",{Title="GPU canvas",Y = 195, DisableDocks = {"Left","Right","Bottom"}})--,AllowResize = true,AutoSizeWindow = false})
+			love.graphics.setCanvas(canvas1)
+			love.graphics.clear({0.5,0.3,0.3})
+			--draw here
+			for y = 1,32 do
+				for x = 1,32 do
+					local tilenum = 1
+					--addressing mode from LCD control register
+					local n = ((y-1)*32)+(x-1)
+					--n = n + 128
+					
+					if gbCPU.gpu.bgmap then
+						n = n + 0x9C00
+					else
+						n = n + 0x9800
+					end
+					if not gbCPU.gpu.bgtile then
+						--n = n + 0x400
+						tilenum = gbCPU.gpu.vram[bit.band(n,0x1FFF)]
+						if bit.band(tilenum,0x80) > 0 then
+							tilenum = -(bit.band(bit.bnot(tilenum),0xFF)+1)
+						end
+						tilenum = 256+tilenum
+					else
+						tilenum = gbCPU.gpu.vram[bit.band(n,0x1FFF)]
+					end
+					drawTile(gbCPU.gpu.tileSet[tilenum],(x-1)*8,(y-1)*8)
+				end
+			end
+			love.graphics.setColor(1,0,0)
+			love.graphics.rectangle("line",00+gbCPU.gpu.scrollX,0+gbCPU.gpu.scrollY,160,144)
+			--error()
+			love.graphics.setCanvas()
+			Slab.Image("img",{Image = canvas1,Scale = 1})
+		Slab.EndWindow()
+	end 
+	
+	if countwin then
+		Slab.BeginWindow("count",{Title="Frame count",X = 200,Y = 410})--,AllowResize = true,AutoSizeWindow = false})
+			Slab.Text("Count: "..count)
+		Slab.EndWindow()
+		count = count + 1
+	end
+	
+	if tilewin then
+		Slab.BeginWindow("tiles",{Title="Tile Viewer",X = 200,Y = 400})--,AllowResize = true,AutoSizeWindow = false})
+			love.graphics.setCanvas(tiles1)
+			for i = 0,0x180 do--render all the tiles in the fist page
+				local tx = i % 16
+				local ty = math.floor(i/16)
+				--tx,ty = tx+1,ty+1
+				local offx,offy = tx*8,ty*8
+				--print(tx,ty)
+				drawTile(gbCPU.gpu.tileSet[i],offx,offy)
+			end
+			love.graphics.setCanvas()
+			Slab.Image("img",{Image = tiles1,Scale = 1})
+		Slab.EndWindow()
+	end
+	
+	if timerwin then
+		Slab.BeginWindow("timer",{Title="TIMER status",Y = 400})--,AllowResize = true,AutoSizeWindow = false})
+			Slab.Text("clock "..string.format("0x%02x",gbCPU.timer.clock))
+			Slab.Text("04, DIV "..string.format("0x%02x",gbCPU.mem.getByte(0xFF04)))
+			Slab.Text("05, TIMA "..string.format("0x%02x",gbCPU.timer.TIMA))
+			Slab.Text("06, TMA "..string.format("0x%02x",gbCPU.timer.TMA))
+			Slab.Text("07, TAC "..string.format("0x%02x",gbCPU.timer.TAC))
+		Slab.EndWindow()
+	end
+	
+	if gpuwin then
+		Slab.BeginWindow("gpu",{Title="GPU status",Y = 400})--,AllowResize = true,AutoSizeWindow = false})
+			Slab.Text("ScrollX "..string.format("0x%02x",gbCPU.gpu.scrollX))
+			Slab.SameLine()
+			if Slab.Input("scrollx",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.gpu.scrollX)}) then
+				gbCPU.gpu.scrollX = Slab.GetInputNumber()
+			end
+			Slab.Text("ScrollY "..string.format("0x%02x",gbCPU.gpu.scrollY))
+			Slab.SameLine()
+			if Slab.Input("scrolly",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.gpu.scrollY)}) then
+				gbCPU.gpu.scrollY = Slab.GetInputNumber()
+			end
+			Slab.Text("GPU Line: "..tostring(gbCPU.gpu.line))
+			Slab.Text("LCDC.3 "..tostring(gbCPU.gpu.bgmap))
+			Slab.Text("LCDC.4 "..tostring(gbCPU.gpu.bgtile))
+			Slab.Text("LCDC.5 "..tostring(gbCPU.gpu.winEnable))
+			Slab.Text("")
+		Slab.EndWindow()
+	end
+	
 	if brkwin then
 		Slab.BeginWindow("brk",{Title="Break points",X=875})--,AllowResize = true,AutoSizeWindow = false})
 			Slab.Text("Input addresses seperated by commas or newlines")
 			--Slab.Text(string.format("0x%02x",gbCPU.PC))
-			if Slab.Input("bp",{MultiLine = true,Highlight = {[string.format("0x%02x",gbCPU.PC)]={0.2,0.9,0.2},["test"] = {1,0,0}},H = 200,W = 225,SelectOnFocus = false}) then
+			local tt = nil
+			if not brkf then
+				local bf = io.open("breakpoints.txt","r")
+				tt = bf:read("*a")
+				bf:close()
+				txt = tt:gsub("\n",",")
+				local lst = txt:split(",")
+				local n = 0
+				breakPointList = {}
+				for b = 1,#lst do
+					if tonumber(lst[b]) then
+						breakPointList[tonumber(lst[b])] = true
+						n = n + 1
+					end
+				end
+				breakPointList.num = n
+			end
+			if Slab.Input("bp",{Text = tt,MultiLine = true,Highlight = {[string.format("0x%02x",gbCPU.PC)]={0.2,0.9,0.2},["test"] = {1,0,0}},H = 200,W = 225,SelectOnFocus = false}) then
 				local txt = Slab.GetInputText()
+				--save to a file for persistance
+				local bf = io.open("breakpoints.txt","w")
+				bf:write(txt)
+				bf:close()
 				txt = txt:gsub("\n",",")
 				local lst = txt:split(",")
 				local n = 0
@@ -134,21 +343,43 @@ function loveupdate(dt)
 			end
 			Slab.SameLine()
 			if Slab.Button("Next") then
+				local f = love.timer.getTime()
 				--step until breakpoint
 				if breakPointList.num and breakPointList.num > 0 then
-					for _ = 1,1000000 do
-						gbCPU.executeInstruction()
+					for _ = 1,3000000 do
+						--gbCPU.executeInstruction()
+						if checking then stepCheck() else gbCPU.executeInstruction() end
 						if breakPointList[gbCPU.PC] == true then
 							break
 						end
+						--if numExecuted == 406770 then
+						--if numExecuted == 406751 then
+						--if lastSP ~= gbCPU.SP and gbCPU.SP == 0xDF6A and fnotsame then
+							--print("next one "..lastPC)
+						--if numExecuted == 2333 then
+						--	break
+						--end
+						--if lastSP ~= gbCPU.SP then
+						--	print("push or pull "..gbCPU.PC)
+						--end
+						--lastPC = gbCPU.PC
+						--lastSP = gbCPU.SP
 					end
 				end
+				local e = love.timer.getTime()
+				print(math.abs(f-e))
+				--local ff = io.open("instran.txt","w")
+				--for i,k in pairs(gbCPU.instsran) do
+				--	print(string.format("%02x",i))
+				--	ff:write(string.format("%02x",i).."\n")
+				--end
+				--ff:close()
 			end
 			--Slab.Image("game",{Image = canvas,Scale = 2})
 			
 		Slab.EndWindow()
 	end
-	
+	--print(bit.bnot(5))
 	if dbgwin then
 		Slab.BeginWindow("debug",{Title="Dissassembly",X = 700})
 		
@@ -198,8 +429,8 @@ function loveupdate(dt)
 				arg = name:sub(s+1):split(",")
 				--print(arg[1],arg[2])
 				local off = 1
-				sinst = sinst..arg[1]..","
-				for r = 2,#arg do
+				--sinst = sinst..arg[1]..","
+				for r = 1,#arg do
 					a = string.lower(arg[r])
 					--print(a)
 					if a == "a" then
@@ -241,6 +472,25 @@ function loveupdate(dt)
 			Slab.Text(flgs)
 			Slab.Text("cycles: "..clk)
 			Slab.Text("inst: "..hex)
+			
+		Slab.EndWindow()
+	end
+	
+	if stackwin then
+		Slab.BeginWindow('stack', {Title = "Stack",X = 275})
+			local memoffs = gbCPU.SP+16
+			for i = 1,16 do--lines
+				if i == 9 then 
+					--print(string.format("0x%04x |",memoffs-(i-1)*2))
+					Slab.Text(string.upper(string.format("0x%04x |",memoffs-(i-1)*2)),{Color = {0.5,1,0.5}})
+					--Slab.Text("nine")
+				else
+					Slab.Text(string.upper(string.format("0x%04x |",memoffs-(i-1)*2)),{Color = {1,1,1}})
+				end
+				Slab.SameLine()
+				local line = ""
+				Slab.Text(string.upper(string.format("0x%02x%02x",gbCPU.mem.getByte((memoffs-(i-1)*2)+1),gbCPU.mem.getByte(memoffs-(i-1)*2))))
+			end
 			
 		Slab.EndWindow()
 	end
@@ -292,43 +542,62 @@ function loveupdate(dt)
 	end
 	
 	if cpuwin then
-		Slab.BeginWindow('cpu', {Title = "Cpu Debug",X = 20})
-			Slab.Text(string.format("A 0x%02x(%d)",gbCPU.A,gbCPU.A) )
+		--[[
+		if gbCPU.instructionsExecuted > 0 then
+			Slab.BeginWindow("record",{Title = "Cpu Record",X = 180})
+				local r = record[gbCPU.instructionsExecuted][1]
+				--local r = record[1][1]
+				Slab.Text(string.format("# %d",gbCPU.instructionsExecuted))
+				if gbCPU.A ~= r.a then Slab.Text(string.format("A 0x%02x",r.a),{Color = {0.8,0.2,0.2}}) else Slab.Text(string.format("A 0x%02x",r.a)) end
+				if gbCPU.B ~= r.b then Slab.Text(string.format("B 0x%02x",r.b),{Color = {0.8,0.2,0.2}}) else Slab.Text(string.format("B 0x%02x",r.b)) end
+				if gbCPU.C ~= r.c then Slab.Text(string.format("C 0x%02x",r.c),{Color = {0.8,0.2,0.2}}) else Slab.Text(string.format("C 0x%02x",r.c)) end
+				if gbCPU.D ~= r.d then Slab.Text(string.format("D 0x%02x",r.d),{Color = {0.8,0.2,0.2}}) else Slab.Text(string.format("D 0x%02x",r.d)) end
+				if gbCPU.E ~= r.e then Slab.Text(string.format("E 0x%02x",r.e),{Color = {0.8,0.2,0.2}}) else Slab.Text(string.format("E 0x%02x",r.e)) end
+				if gbCPU.H ~= r.h then Slab.Text(string.format("H 0x%02x",r.h),{Color = {0.8,0.2,0.2}}) else Slab.Text(string.format("H 0x%02x",r.h)) end
+				if gbCPU.L ~= r.l then Slab.Text(string.format("L 0x%02x",r.l),{Color = {0.8,0.2,0.2}}) else Slab.Text(string.format("L 0x%02x",r.l)) end
+				if gbCPU.F ~= r.f then Slab.Text(string.format("F 0x%02x",r.f),{Color = {0.8,0.2,0.2}}) else Slab.Text(string.format("F 0x%02x",r.f)) end
+				if gbCPU.SP ~= r.sp then Slab.Text(string.format("SP 0x%02x",r.sp),{Color = {0.8,0.2,0.2}}) else Slab.Text(string.format("SP 0x%02x",r.sp)) end
+				if gbCPU.PC ~= r.pc then Slab.Text(string.format("PC 0x%02x",r.pc),{Color = {0.8,0.2,0.2}}) else Slab.Text(string.format("PC 0x%02x",r.pc)) end
+			Slab.EndWindow()
+		end
+		]]--
+		Slab.BeginWindow('cpu', {Title = "Cpu Debug" ,ResetPosition=true,X=10,Y=25})
+			Slab.Text(string.format("A 0x%02x",gbCPU.A) )
 			Slab.SameLine()
 			if Slab.Input("A",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.A)}) then
 				gbCPU.A = Slab.GetInputNumber()
 			end
-			Slab.Text(string.format("B 0x%02x(%d)",gbCPU.B,gbCPU.B) )
+			Slab.Text(string.format("B 0x%02x",gbCPU.B) )
 			Slab.SameLine()
 			if Slab.Input("B",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.B)}) then
 				gbCPU.B = Slab.GetInputNumber()
 			end
-			Slab.Text(string.format("C 0x%02x(%d)",gbCPU.C,gbCPU.C) )
+			Slab.Text(string.format("C 0x%02x",gbCPU.C) )
 			Slab.SameLine()
 			if Slab.Input("C",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.C)}) then
 				gbCPU.C = Slab.GetInputNumber()
 			end
-			Slab.Text(string.format("D 0x%02x(%d)",gbCPU.D,gbCPU.D) )
+			Slab.Text(string.format("D 0x%02x",gbCPU.D) )
 			Slab.SameLine()
 			if Slab.Input("D",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.D)}) then
 				gbCPU.D = Slab.GetInputNumber()
 			end
-			Slab.Text(string.format("E 0x%02x(%d)",gbCPU.E,gbCPU.E) )
+			Slab.Text(string.format("E 0x%02x",gbCPU.E) )
 			Slab.SameLine()
 			if Slab.Input("E",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.E)}) then
 				gbCPU.E = Slab.GetInputNumber()
 			end
-			Slab.Text(string.format("H 0x%02x(%d)",gbCPU.H,gbCPU.H) )
+			Slab.Text(string.format("H 0x%02x",gbCPU.H) )
 			Slab.SameLine()
 			if Slab.Input("H",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.H)}) then
 				gbCPU.H = Slab.GetInputNumber()
 			end
-			Slab.Text(string.format("L 0x%02x(%d)",gbCPU.L,gbCPU.L) )
+			Slab.Text(string.format("L 0x%02x",gbCPU.L) )
 			Slab.SameLine()
 			if Slab.Input("L",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.L)}) then
 				gbCPU.L = Slab.GetInputNumber()
 			end
-			Slab.Text(string.format("F 0x%02x(%d)",gbCPU.F,gbCPU.F) )
+			Slab.Text(string.format("F 0x%02x",gbCPU.F) )
 			Slab.SameLine()
 			if Slab.Input("F",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.F)}) then
 				gbCPU.F = Slab.GetInputNumber()
@@ -352,26 +621,45 @@ function loveupdate(dt)
 			end
 			Slab.SameLine()
 			local c = (bit.band(gbCPU.F,0x10)>0 and true or false)
-			if Slab.CheckBox(c, "N",{Tooltip = "Subtract Flag"}) then
+			if Slab.CheckBox(c, "C",{Tooltip = "Carry Flag"}) then
 				if not c then gbCPU.F = bor(gbCPU.F,0x10) else gbCPU.F = band(gbCPU.F,0xEF) end
 			end
 			
-			Slab.Text(string.format("SP 0x%04x(%d)",gbCPU.SP,gbCPU.SP))
+			Slab.Text(string.format("SP 0x%04x",gbCPU.SP))
 			Slab.SameLine()
 			if Slab.Input("SP",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.SP)}) then
 				gbCPU.SP = Slab.GetInputNumber()
 			end
-			Slab.Text("PC "..string.format("0x%04x",gbCPU.PC).."("..gbCPU.PC..")")
+			Slab.Text("PC "..string.format("0x%04x",gbCPU.PC))
 			Slab.SameLine()
 			if Slab.Input("PC",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.PC)}) then
 				gbCPU.PC = Slab.GetInputNumber()
 			end
+			if Slab.CheckBox(gbCPU.IME, "IME",{Tooltip = "Interupt enable"}) then
+				gbCPU.IME = not gbCPU.IME
+			end
+			Slab.SameLine()
+			if Slab.CheckBox(gbCPU.HALT, "HALT",{Tooltip = "CPU HALT"}) then
+				gbCPU.HALT = not gbCPU.HALT
+			end
 			local hz = 4.194304*1000000
 			Slab.Text("Cpu cycles "..gbCPU.cycles)
 			Slab.Text("("..string.format("%.4f",gbCPU.cycles/hz)..")seconds")
+			
+			Slab.Text("Run inst")
+			Slab.SameLine()
+			if Slab.Button("Run",{W = 40,H = 12}) then
+				gbCPU.runInstruction(instToBeRun)
+			end
+			if Slab.Input("Inst",{ReturnOnText = false, Text=instToBeRun}) then
+				instToBeRun = Slab.GetInputNumber()
+			end
+			
+			
 			if Slab.Button("Step",{W = 40,H = 18}) then
 				gbCPU.executeInstruction(true)
 			end
+			
 			Slab.SameLine()
 			if Slab.Button("+100",{W = 40,H = 18}) then
 				for i = 1,100 do
@@ -386,7 +674,7 @@ function loveupdate(dt)
 				end
 				print(1000)
 			end
-			if Slab.Button("custom",{W = 60,H = 18}) then
+			if Slab.Button("Custom",{W = 60,H = 18}) then
 				for i = 1,cstep do                                                          
 					gbCPU.executeInstruction()
 				end
@@ -397,6 +685,9 @@ function loveupdate(dt)
 				cstep = Slab.GetInputNumber()
 			end
 			Slab.Text("Instructions: "..gbCPU.instructionsExecuted)
+			if Slab.Button("Reset",{W = 60,H = 18}) then
+				gbCPU.reset()
+			end
 		Slab.EndWindow()
 	end
 	
@@ -417,16 +708,43 @@ function loveupdate(dt)
 			if Slab.MenuItemChecked("Memory View", memwin) then
 				memwin = not memwin
 			end
+			if Slab.MenuItemChecked("Stack View", stackwin) then
+				stackwin = not stackwin
+			end
 			if Slab.MenuItemChecked("Dissassembly", dbgwin) then
 				dbgwin = not dbgwin
 			end
 			if Slab.MenuItemChecked("BreakPoints", brkwin) then
 				brkwin = not brkwin
 			end
+			if Slab.MenuItemChecked("Gpu status", gpuwin) then
+				gpuwin = not gpuwin
+			end
+			if Slab.MenuItemChecked("Timer status", timerwin) then
+				timerwin = not timerwin
+			end
+			if Slab.MenuItemChecked("Tilemap view", tilewin) then
+				tilewin = not tilewin
+			end
+			if Slab.MenuItemChecked("GPU Canvas view", canwin) then
+				canwin = not canwin
+			end
+			if Slab.MenuItemChecked("LCD view", lcdwin) then
+				lcdwin = not lcdwin
+			end
+			if Slab.MenuItemChecked("Count view", countwin) then
+				countwin = not countwin
+			end
 			Slab.EndMenu()
 		end
 
 		Slab.EndMainMenuBar()
+	end
+	if bigboy then
+		for i = 1,100 do
+			gbCPU.executeInstruction()
+			printLinkPort()
+		end
 	end
 end
 
@@ -455,11 +773,74 @@ end
 
 local curBreakPoint = -1
 
---inputs--
 
 
+fnotsame = true
+lastPC = 0
+function stepCheck()
+	numExecuted = numExecuted + 1
+	gbCPU.executeInstruction()
+	--print(numExecuted)
+	line = epicLog:read("*l") 
+	--parse line 
+	--A: 01 F: B0 B: 00 C: 13 D: 00 E: D8 H: 01 L: 4D SP: FFFE PC: 00:0100 (00 C3 13 02)
+	local a,f,b,c,d,e,h,l,sp,pc = line:match("A: (%x+) F: (%x+) B: (%x+) C: (%x+) D: (%x+) E: (%x+) H: (%x+) L: (%x+) SP: (%x+) PC: 00:(%x+) ")
+	a,f,b,c,d,e,h,l,sp,pc = tonumber(a,16),tonumber(f,16),tonumber(b,16),tonumber(c,16),tonumber(d,16),tonumber(e,16),tonumber(h,16),tonumber(l,16),tonumber(sp,16),tonumber(pc,16)
+	--if numExecuted > 35290000 then--748000 then --and numExecuted < 621023 then --406751	
+		--print(numExecuted)
+		print(line..numExecuted)
+		print(a,f,b,c,d,e,h,l,sp,pc)
+		print(gbCPU.A,gbCPU.F,gbCPU.B,gbCPU.C,gbCPU.D,gbCPU.E,gbCPU.H,gbCPU.L,gbCPU.SP,gbCPU.PC)
+	--end
+	if gbCPU.PC ~= pc then print(gbCPU.PC,string.format("%x",lastPC),numExecuted) ; error("PC not equal at "..pc) end
+	if gbCPU.A ~= a then print(gbCPU.A,string.format("%x",lastPC),numExecuted) ; error("A not equal at "..pc) end
+	if gbCPU.B ~= b then print(gbCPU.B,string.format("%x",lastPC),numExecuted) ; error("B not equal at "..pc) end
+	if gbCPU.C ~= c then print(gbCPU.C,string.format("%x",lastPC),numExecuted) ; error("C not equal at "..pc) end
+	if gbCPU.D ~= d then print(gbCPU.D,string.format("%x",lastPC),numExecuted) ; error("D not equal at "..pc) end
+	if gbCPU.E ~= e then print(gbCPU.E,string.format("%x",lastPC),numExecuted) ; error("E not equal at "..pc) end
+	if gbCPU.H ~= h then print(gbCPU.H,string.format("%x",lastPC),numExecuted) ; error("H not equal at "..pc) end
+	if gbCPU.L ~= l then print(gbCPU.L,string.format("%x",lastPC),numExecuted) ; error("L not equal at "..pc) end
+	if gbCPU.F ~= f then print(gbCPU.L,string.format("%x",lastPC),numExecuted) ; error("F not equal at "..pc) ; fnotsame = true else fnotsame = false end
+	if gbCPU.SP ~= sp then print(gbCPU.SP,string.format("%x",lastPC),numExecuted) ; error("SP not equal at "..pc) end
+	lastPC = gbCPU.PC
+	--gbCPU.executeInstruction()
+end
+
+numExecuted = 0
+bigboy = false
+
+checking = false
 function love.keypressed(k)
 	--print(k)
+	if k == "space" then
+		--bigboy = not bigboy
+		--checking = not checking
+		running = not running
+		--print(checking)
+		--print("running: "..tostring(bigboy))
+		--print("1000000")
+		--for i = 1,100000 do
+		--	gbCPU.executeInstruction()
+		--	numExecuted = numExecuted + 1
+			--[[
+			zc = record[numExecuted][1]
+			--print(gbCPU.A,zc.a)
+			if gbCPU.A ~= zc.a then error("A not equal at "..i) end
+			if gbCPU.B ~= zc.b then error("B not equal at "..i) end
+			if gbCPU.C ~= zc.c then error("C not equal at "..i) end
+			if gbCPU.D ~= zc.d then error("D not equal at "..i) end
+			if gbCPU.E ~= zc.e then error("E not equal at "..i) end
+			if gbCPU.H ~= zc.h then error("H not equal at "..i) end
+			if gbCPU.L ~= zc.l then error("L not equal at "..i) end
+			--if gbCPU.F ~= zc.f then error("F not equal at "..i) end
+			if gbCPU.SP ~= zc.sp then error("SP not equal at "..i) end
+			if gbCPU.PC ~= zc.pc then error("PC not equal at "..i) end
+			]]--
+		--end
+	end
+	if k == "return" then
+		if checking then stepCheck() end
+	end
 	return--[[
 	if k == "space" then
 		--print("executing instruction")

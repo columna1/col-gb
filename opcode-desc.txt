@@ -6,30 +6,43 @@ lshift = bit.lshift
 rshift = bit.rshift
 
 func.
-sub :((%1-%2 > 0) and %1-%2 or 0)
+#sub :((%1-%2 > 0) and %1-%2 or 0)
+sub :%1-%2
 bor :bor(%,%)
 xor :xor(%,%)
 band :band(%,%)
+bnot :bit.bnot(%)
 lsh :lshift(%,%)
+rsh :rshift(%,%)
 rb :mem.getByte(%)
 rbi 1:mem.getByte(%)
 rbsi 1:mem.getSignedByte(%)
 wb :mem.setByte(%,%)
-wbb :mem.setByte(bit.band(%1,0xFF),%2) ; mem.setByte(bit.band(%1,0xFF00),%2+1)
+wbb :mem.setByte(bit.band(%1,0xFF),%2) ; mem.setByte(bit.band(bit.rshift(%1,8),0xFF),%2+1)
 wbi 1:mem.setByte(%,%)
 sxb :(%+lshift(%,8))
 HL :(lshift(self.H,8)+self.L)
 DE :(lshift(self.D,8)+self.E)
+BC :(lshift(self.B,8)+self.C)
 fb :band(%,0xFF)
 lb :rshift(band(%,0xFF00),8)
 limit :bit.band(%,0xFF)
 limitS :bit.band(%,0xFFFF)
 plus : (%+%)
+swap : bit.rshift(band(%,0xF0),4)+bit.lshift(band(%,0xF),4)
 
-setFH :self.F = (band(%,0xF )+band(%,0xF ) > 0xF ) and bor(self.F,0x20) or band(self.F,0xDF)
-setFHs :self.F= (((band(%1,0xF)-band(%2,0xF)) < 0) and %1 > 0 ) and bor(self.F,0x20) or band(self.F,0xDF)
+#setFH :self.F = (band(%,0xF )+band(%,0xF ) > 0xF ) and bor(self.F,0x20) or band(self.F,0xDF)
+#half carry for addition
+setFHa :self.F = (band(band(%,0xF )+band(%,0xF ),0x10) == 0x10) and bor(self.F,0x20) or band(self.F,0xDF)
+setFHat :self.F = (band(band(%,0xF )+band(%,0xF )+band(%,0xF ),0x10) == 0x10) and bor(self.F,0x20) or band(self.F,0xDF)
+#half carry for subtraction
+setFHs :self.F = (band(band(%,0xF )-band(%,0xF ),0x10) == 0x10) and bor(self.F,0x20) or band(self.F,0xDF)
+setFHst :self.F = (band(band(%,0xF )-band(%,0xF )-band(%,0xF ),0x10) == 0x10) and bor(self.F,0x20) or band(self.F,0xDF)
+
 setFC :self.F = (band(%,0xFF)+band(%,0xFF) > 0xFF) and bor(self.F,0x10) or band(self.F,0xEF)
+setFCt :self.F = (band(%,0xFF)+band(%,0xFF)+band(%,0xFF) > 0xFF) and bor(self.F,0x10) or band(self.F,0xEF)
 setFCs :self.F = (%-% < 0) and bor(self.F,0x10) or band(self.F,0xEF)
+setFCst :self.F = (%-%-% < 0) and bor(self.F,0x10) or band(self.F,0xEF)
 setFHx :self.F = (band(%,0xFFF )+band(%,0xFFF ) > 0xFFF ) and bor(self.F,0x20) or band(self.F,0xDF)
 setFCx :self.F = (band(%,0xFFFF)+band(%,0xFFFF) > 0xFFFF) and bor(self.F,0x10) or band(self.F,0xEF)
 setFZ :self.F = (% == 0) and bor(self.F,0x80) or band(self.F,0x7F)
@@ -38,24 +51,34 @@ setFNz :self.F = band(self.F,0xBF)
 setFZz :self.F = band(self.F,0x7F)
 setFCz :self.F = band(self.F,0xEF)
 setFHz :self.F = band(self.F,0xDF)
+setFZo :self.F = bit.bor(self.F,0x80)
+setFCo :self.F = bit.bor(self.F,0x10)
+setFNo :self.F = bit.bor(self.F,0x40)
+setFHo :self.F = bit.bor(self.F,0x20)
 
 setFCa : self.F = ((% == 0) and band(self.F,0xEF) or bor(self.F,0x10))
 
+getFZ :(band(self.F,0x80)>0 and 1 or 0)
+getFN :(band(self.F,0x40)>0 and 1 or 0)
+getFH :(band(self.F,0x20)>0 and 1 or 0)
 getFC :(band(self.F,0x10)>0 and 1 or 0)
 
 ifnz :if (band(self.F,0x80) == 0) then
 ifz :if (band(self.F,0x80) > 0) then
+ifnc :if (band(self.F,0x10) == 0) then
+ifc :if (band(self.F,0x10) > 0) then
+
 incCyc :cycles = cycles + %
 
 cpfunct : local temp = %1 - %2 ; self.F = temp<0 and 0x50 or 0x40
-
-
+#cpfunct : self.F = (%1-%2)<0 and 0x50 or 0x40
 
 
 ; temp = band(temp,0xff); if temp == 0 then self.F = bor(self.F,0x80) end if band(xor(xor(%1,%2),temp),0x10)>0 then self.F = bor(self.F,0x20) end
 
 #debug
 print :print(%)
+printd :print("not Zero")
 
 reg.
 A:self.A
@@ -66,6 +89,8 @@ E:self.E
 F:self.F
 H:self.H
 L:self.L
+EI:self.IME
+HALT:self.HALT
 SP:self.SP
 SPpo:self.SP+1
 SPpt:self.SP+2
@@ -76,6 +101,7 @@ PCP:self.PC+1
 PCpt:self.PC+2
 local: local
 temp:temp
+tem:tem
 t:t
 tempPo:temp+1
 tempMo:temp-1
@@ -84,12 +110,14 @@ e:8
 ffzz:0xFF00
 
 if:if
-then:then
+then: then
 else:else
 elseif:elseif
 end:end
-and:and
+and: and
 or:or
+false:false
+true:true
 
 sf:64
 
@@ -97,7 +125,7 @@ op.
 #LD nn,n
 8|0x06:B = rbi PC 
 8|0x0E:C = rbi PC 
-8|0x16:D = rbi PC 
+8|0x16:D = rbi PC
 8|0x1E:E = rbi PC 
 8|0x26:H = rbi PC 
 8|0x2E:L = rbi PC 
@@ -160,11 +188,13 @@ op.
 8|0x74:wb H HL
 8|0x75:wb L HL
 12|0x36:wb rbi PC HL
+
 #LD A,n
 8|0x0A:A = rb sxb C B
 8|0x1A:A = rb sxb E D
 16|0xFA:A = rb sxb rbi PC rbi PCP
 8|0x3E:A = rbi PC
+
 #LD n,A
 4|0x47:B = A
 4|0x4F:C = A
@@ -181,123 +211,526 @@ op.
 8|0xE2:wb A plus ffzz C
 12|0xE0:wb A plus ffzz rbi PC
 12|0xF0:A = rb plus ffzz rbi PC
+
 #LDDA,(HL)
 8|0x3A:local temp = HL ; A = rb temp ; temp = temp-1 ; temp = limitS temp ; H = lb temp ; L = fb temp
 8|0x32:local temp = HL ; wb A temp ; temp = temp-1 ; temp = limitS temp ; H = lb temp ; L = fb temp 
 8|0x2A:local temp = HL ; A = rb temp ; temp = temp+1 ; temp = limitS temp ; H = lb temp ; L = fb temp
 8|0x22:local temp = HL ; wb A temp ; temp = temp+1 ; temp = limitS temp ; H = lb temp ; L = fb temp 
+
 #LD n,nn
 12|0x01:C = rbi PC ; B = rbi PCP
 12|0x11:E = rbi PC ; D = rbi PCP
 12|0x21:L = rbi PC ; H = rbi PCP
 12|0x31:SP = sxb rbi PC rbi PCP
 8|0xF9:SP = HL
-12|0xF8:local temp = rbsi PC ; setFHx PC temp ; setFCx PC temp ; setFNz ; setFZz ; temp = limitS temp ;temp = temp + PC ; H = lb temp ; L = fb temp
-20|0x08:local temp = sxb rbi PC rbi PCP; wb lb SP temp; wb fb SP tempPo
+12|0xF8:local temp = rbsi PC ; setFHa SP temp ; setFC SP temp ; setFNz ; setFZz ; temp = temp + SP ; temp = limitS temp ; H = lb temp ; L = fb temp
+20|0x08:local temp = sxb rbi PC rbi PCP; wb fb SP temp; wb lb SP tempPo
+
 #PUSH nn
 16|0xF5:SP=SP-1 ; wb A SP ; SP=SP-1 ; wb F SP
 16|0xC5:SP=SP-1 ; wb B SP ; SP=SP-1 ; wb C SP
 16|0xD5:SP=SP-1 ; wb D SP ; SP=SP-1 ; wb E SP
 16|0xE5:SP=SP-1 ; wb H SP ; SP=SP-1 ; wb L SP
+
 #POP nn
-12|0xF1:F = rb SP ; SP=SP+1 ; A = rb SP ; SP=SP+1
+12|0xF1:F = band rb SP 240 ; SP=SP+1 ; A = rb SP ; SP=SP+1
 12|0xC1:C = rb SP ; SP=SP+1 ; B = rb SP ; SP=SP+1
 12|0xD1:E = rb SP ; SP=SP+1 ; D = rb SP ; SP=SP+1
 12|0xE1:L = rb SP ; SP=SP+1 ; H = rb SP ; SP=SP+1
+
 #ADD A,n
-4|0x87:local temp = A+A ; setFH A A ; setFZ temp ; setFC A A ; setFNz ; A = limit temp
-4|0x80:local temp = A+B ; setFH A B ; setFZ temp ; setFC A B ; setFNz ; A = limit temp
-4|0x81:local temp = A+C ; setFH A C ; setFZ temp ; setFC A C ; setFNz ; A = limit temp
-4|0x82:local temp = A+D ; setFH A D ; setFZ temp ; setFC A D ; setFNz ; A = limit temp
-4|0x83:local temp = A+E ; setFH A E ; setFZ temp ; setFC A E ; setFNz ; A = limit temp
-4|0x84:local temp = A+H ; setFH A H ; setFZ temp ; setFC A H ; setFNz ; A = limit temp
-4|0x85:local temp = A+L ; setFH A L ; setFZ temp ; setFC A L ; setFNz ; A = limit temp
+4|0x87:local temp = A+A ; setFHa A A ; setFC A A ; setFNz ; A = limit temp ; setFZ A
+4|0x80:local temp = A+B ; setFHa A B ; setFC A B ; setFNz ; A = limit temp ; setFZ A
+4|0x81:local temp = A+C ; setFHa A C ; setFC A C ; setFNz ; A = limit temp ; setFZ A
+4|0x82:local temp = A+D ; setFHa A D ; setFC A D ; setFNz ; A = limit temp ; setFZ A
+4|0x83:local temp = A+E ; setFHa A E ; setFC A E ; setFNz ; A = limit temp ; setFZ A
+4|0x84:local temp = A+H ; setFHa A H ; setFC A H ; setFNz ; A = limit temp ; setFZ A
+4|0x85:local temp = A+L ; setFHa A L ; setFC A L ; setFNz ; A = limit temp ; setFZ A
 
-8|0x86:local t = rb HL ; local temp = A+t ; setFH A t ; setFZ temp ; setFC A t ; setFNz ; A = limit temp
-8|0xC6:local t = rbi PC ; local temp = A+t ; setFH A t ; setFZ temp ; setFC A t ; setFNz ; A = limit temp
+8|0x09:local temp = HL+BC ; setFHx HL BC ; setFCx HL BC ; temp = limitS temp ; H = lb temp ; L = fb temp ; setFNz
+8|0x19:local temp = HL+DE ; setFHx HL DE ; setFCx HL DE ; temp = limitS temp ; H = lb temp ; L = fb temp ; setFNz
+8|0x29:local temp = HL+HL ; setFHx HL HL ; setFCx HL HL ; temp = limitS temp ; H = lb temp ; L = fb temp ; setFNz
+8|0x39:local temp = HL+SP ; setFHx HL SP ; setFCx HL SP ; temp = limitS temp ; H = lb temp ; L = fb temp ; setFNz
 
-#8|0x86:local temp = rb HL ; setFHx A temp ; setFZ A+temp ; setFCx A temp ; setFNz ; A = A+temp
-#8|0xC6:local temp = rbi PC ; setFHx A temp ; setFZ A+temp ; setFCx A temp ; setFNz ; A = A+temp
+16|0xE8:local temp = rbsi PC ; setFHa temp SP ; setFC temp SP ; temp = SP + temp ; temp = limitS temp ; SP = temp ; setFNz ; setFZz
+
+8|0x86:local t = rb HL ; local temp = A+t ; setFHa A t ; setFC A t ; setFNz ; A = limit temp ; setFZ A
+8|0xC6:local t = rbi PC ; local temp = A+t ; setFHa A t ; setFC A t ; setFNz ; A = limit temp ; setFZ A
+
 
 #increment
-4|0x3C:setFH A 1 ; A = A + 1 ; A = limit A ; setFZ A ; setFNz
-4|0x04:setFH B 1 ; B = B + 1 ; B = limit B ; setFZ B ; setFNz
-4|0x0C:setFH C 1 ; C = C + 1 ; C = limit C ; setFZ C ; setFNz
-4|0x14:setFH D 1 ; D = D + 1 ; D = limit D ; setFZ D ; setFNz
-4|0x1C:setFH E 1 ; E = E + 1 ; E = limit E ; setFZ E ; setFNz
-4|0x24:setFH H 1 ; H = H + 1 ; H = limit H ; setFZ H ; setFNz
-4|0x2C:setFH L 1 ; L = L + 1 ; L = limit L ; setFZ L ; setFNz
-12|0x23:local temp = HL; temp = temp+1; temp = limitS temp ; H = lb temp ; L = fb temp ; setFZ temp ; setFNz
-12|0x13:local temp = DE; temp = temp+1; temp = limitS temp ; D = lb temp ; E = fb temp ; setFZ temp ; setFNz
-#todo: inc (HL)
+4|0x3C:setFHa A 1 ; A = A + 1 ; A = limit A ; setFZ A ; setFNz
+4|0x04:setFHa B 1 ; B = B + 1 ; B = limit B ; setFZ B ; setFNz
+4|0x0C:setFHa C 1 ; C = C + 1 ; C = limit C ; setFZ C ; setFNz
+4|0x14:setFHa D 1 ; D = D + 1 ; D = limit D ; setFZ D ; setFNz
+4|0x1C:setFHa E 1 ; E = E + 1 ; E = limit E ; setFZ E ; setFNz
+4|0x24:setFHa H 1 ; H = H + 1 ; H = limit H ; setFZ H ; setFNz
+4|0x2C:setFHa L 1 ; L = L + 1 ; L = limit L ; setFZ L ; setFNz
+8|0x03:local temp = BC; temp = temp+1; temp = limitS temp ; B = lb temp ; C = fb temp
+8|0x23:local temp = HL; temp = temp+1; temp = limitS temp ; H = lb temp ; L = fb temp
+8|0x13:local temp = DE; temp = temp+1; temp = limitS temp ; D = lb temp ; E = fb temp
+8|0x33:local temp = SP; temp = temp+1; temp = limitS temp ; SP = temp
+12|0x34:local temp = rb HL ; setFHa temp 1 ; temp = temp+1; temp = limit temp ; wb temp HL ; setFZ temp ; setFNz
 
 #decrement
-4|0x3D:setFHs A 1 ; A = sub A 1 ; A = limit A ; setFZ A ; setFN ; setFCz
-4|0x05:setFHs B 1 ; B = sub B 1 ; B = limit B ; setFZ B ; setFN ; setFCz
-4|0x0D:setFHs C 1 ; C = sub C 1 ; C = limit C ; setFZ C ; setFN ; setFCz
-4|0x15:setFHs D 1 ; D = sub D 1 ; D = limit D ; setFZ D ; setFN ; setFCz
-4|0x1D:setFHs E 1 ; E = sub E 1 ; E = limit E ; setFZ E ; setFN ; setFCz
-4|0x25:setFHs H 1 ; H = sub H 1 ; H = limit H ; setFZ H ; setFN ; setFCz
-4|0x2D:setFHs L 1 ; L = sub L 1 ; L = limit L ; setFZ L ; setFN ; setFCz
+4|0x3D:setFHs A 1 ; A = sub A 1 ; A = limit A ; setFZ A ; setFN
+4|0x05:setFHs B 1 ; B = sub B 1 ; B = limit B ; setFZ B ; setFN
+4|0x0D:setFHs C 1 ; C = sub C 1 ; C = limit C ; setFZ C ; setFN
+4|0x15:setFHs D 1 ; D = sub D 1 ; D = limit D ; setFZ D ; setFN
+4|0x1D:setFHs E 1 ; E = sub E 1 ; E = limit E ; setFZ E ; setFN
+4|0x25:setFHs H 1 ; H = sub H 1 ; H = limit H ; setFZ H ; setFN
+4|0x2D:setFHs L 1 ; L = sub L 1 ; L = limit L ; setFZ L ; setFN
+8|0x0B:local temp = BC; temp = temp-1 ; temp = limitS temp ; B = lb temp ; C = fb temp
+8|0x1B:local temp = DE; temp = temp-1 ; temp = limitS temp ; D = lb temp ; E = fb temp
+8|0x2B:local temp = HL; temp = temp-1 ; temp = limitS temp ; H = lb temp ; L = fb temp
+8|0x3B:local temp = SP; temp = temp-1 ; temp = limitS temp ; SP = temp
+12|0x35:local temp = rb HL ; setFHs temp 1 ; temp = temp-1 ; temp = limit temp ; wb temp HL ; setFZ temp ; setFNo
 #todo dec HL
 
 #ADC A,n add n + carry flag to A
-4|0x8F:local t = A+getFC ; local temp = A+t ; setFH A t ; setFZ temp ; setFC A t ; setFNz ; A = limit temp
-4|0x88:local t = B+getFC ; local temp = A+t ; setFH A t ; setFZ temp ; setFC A t ; setFNz ; A = limit temp
-4|0x89:local t = C+getFC ; local temp = A+t ; setFH A t ; setFZ temp ; setFC A t ; setFNz ; A = limit temp
-4|0x8A:local t = D+getFC ; local temp = A+t ; setFH A t ; setFZ temp ; setFC A t ; setFNz ; A = limit temp
-4|0x8B:local t = E+getFC ; local temp = A+t ; setFH A t ; setFZ temp ; setFC A t ; setFNz ; A = limit temp
-4|0x8C:local t = H+getFC ; local temp = A+t ; setFH A t ; setFZ temp ; setFC A t ; setFNz ; A = limit temp
-4|0x8D:local t = L+getFC ; local temp = A+t ; setFH A t ; setFZ temp ; setFC A t ; setFNz ; A = limit temp
+4|0x8F:local t = getFC ; setFHat A A t ; setFCt A A t ; setFNz ; A = A + A + t ; A = limit A ; setFZ A
+4|0x88:local t = getFC ; setFHat A B t ; setFCt A B t ; setFNz ; A = A + B + t ; A = limit A ; setFZ A
+4|0x89:local t = getFC ; setFHat A C t ; setFCt A C t ; setFNz ; A = A + C + t ; A = limit A ; setFZ A
+4|0x8A:local t = getFC ; setFHat A D t ; setFCt A D t ; setFNz ; A = A + D + t ; A = limit A ; setFZ A
+4|0x8B:local t = getFC ; setFHat A E t ; setFCt A E t ; setFNz ; A = A + E + t ; A = limit A ; setFZ A
+4|0x8C:local t = getFC ; setFHat A H t ; setFCt A H t ; setFNz ; A = A + H + t ; A = limit A ; setFZ A
+4|0x8D:local t = getFC ; setFHat A L t ; setFCt A L t ; setFNz ; A = A + L + t ; A = limit A ; setFZ A
 
-4|0x8E:local t = rb HL+getFC ; local temp = A+t ; setFH A t ; setFZ temp ; setFC A t ; setFNz ; A = limit temp
-4|0xCE:local t = rbi PC+getFC ; local temp = A+t ; setFH A t ; setFZ temp ; setFC A t ; setFNz ; A = limit temp
-
-#8|0x8E:local t = rb HL+getFC ; local temp = A+t ; setFHx A t ; setFZ temp ; setFCx A t ; setFNz ; A = temp
-#8|0xCE:local t = rbi PC+getFC ; local temp = A+t ; setFHx A t ; setFZ temp ; setFCx A t ; setFNz ; A = temp
+8|0x8E:local t = getFC ; local temp = rb HL ; setFHat A temp t ; setFCt A temp t ; A = temp + A + t ; setFNz ; A = limit A ; setFZ A
+8|0xCE:local t = getFC ; local temp = rbi PC ; setFHat A temp t ; setFCt A temp t ; A = temp + A + t ; setFNz ; A = limit A ; setFZ A
 
 #SUB n
-4|0x97:local temp = sub A A ; setFHs A A ; setFZ temp ; setFCs A A ; setFN ; A = temp
-4|0x90:local temp = sub A B ; setFHs A B ; setFZ temp ; setFCs A B ; setFN ; A = temp
-4|0x91:local temp = sub A C ; setFHs A C ; setFZ temp ; setFCs A C ; setFN ; A = temp
-4|0x92:local temp = sub A D ; setFHs A D ; setFZ temp ; setFCs A D ; setFN ; A = temp
-4|0x93:local temp = sub A E ; setFHs A E ; setFZ temp ; setFCs A E ; setFN ; A = temp
-4|0x94:local temp = sub A H ; setFHs A H ; setFZ temp ; setFCs A H ; setFN ; A = temp
-4|0x95:local temp = sub A L ; setFHs A L ; setFZ temp ; setFCs A L ; setFN ; A = temp
+4|0x97:local temp = sub A A ; setFHs A A ; setFZ temp ; setFCs A A ; setFNo ; A = limit temp
+4|0x90:local temp = sub A B ; setFHs A B ; setFZ temp ; setFCs A B ; setFNo ; A = limit temp
+4|0x91:local temp = sub A C ; setFHs A C ; setFZ temp ; setFCs A C ; setFNo ; A = limit temp
+4|0x92:local temp = sub A D ; setFHs A D ; setFZ temp ; setFCs A D ; setFNo ; A = limit temp
+4|0x93:local temp = sub A E ; setFHs A E ; setFZ temp ; setFCs A E ; setFNo ; A = limit temp
+4|0x94:local temp = sub A H ; setFHs A H ; setFZ temp ; setFCs A H ; setFNo ; A = limit temp
+4|0x95:local temp = sub A L ; setFHs A L ; setFZ temp ; setFCs A L ; setFNo ; A = limit temp
+8|0x96:local tem = rb HL ; local temp = sub A tem ; setFHs A tem ; setFZ temp ; setFCs A tem ; setFNo ; A = limit temp
+8|0xD6:local tem = rbi PC ; local temp = sub A tem ; setFHs A tem ; setFZ temp ; setFCs A tem ; setFNo ; A = limit temp
 
-4|0xAF :A = xor A A ; setFZ A ; setFNz ; setFHz ; setFCz
+#SBC
+4|0x98:local t = getFC ; local temp = B ; setFHst A temp t ; A = A - temp ; A = A - t ; if A < 0 then setFCo else setFCz end ; A = limit A ; setFZ A ; setFNo
+4|0x99:local t = getFC ; local temp = C ; setFHst A temp t ; A = A - temp ; A = A - t ; if A < 0 then setFCo else setFCz end ; A = limit A ; setFZ A ; setFNo
+4|0x9A:local t = getFC ; local temp = D ; setFHst A temp t ; A = A - temp ; A = A - t ; if A < 0 then setFCo else setFCz end ; A = limit A ; setFZ A ; setFNo
+4|0x9B:local t = getFC ; local temp = E ; setFHst A temp t ; A = A - temp ; A = A - t ; if A < 0 then setFCo else setFCz end ; A = limit A ; setFZ A ; setFNo
+4|0x9C:local t = getFC ; local temp = H ; setFHst A temp t ; A = A - temp ; A = A - t ; if A < 0 then setFCo else setFCz end ; A = limit A ; setFZ A ; setFNo
+4|0x9D:local t = getFC ; local temp = L ; setFHst A temp t ; A = A - temp ; A = A - t ; if A < 0 then setFCo else setFCz end ; A = limit A ; setFZ A ; setFNo
+4|0x9F:local t = getFC ; local temp = A ; setFHst A temp t ; A = A - temp ; A = A - t ; if A < 0 then setFCo else setFCz end ; A = limit A ; setFZ A ; setFNo
+8|0xDE:local t = getFC ; local temp = rbi PC ; setFHst A temp t ; A = A - temp ; A = A - t ; if A < 0 then setFCo else setFCz end ; A = limit A ; setFZ A ; setFNo
+8|0x9E:local t = getFC ; local temp = rbi HL ; setFHst A temp t ; A = A - temp ; A = A - t ; if A < 0 then setFCo else setFCz end ; A = limit A ; setFZ A ; setFNo
+
+#bitwise
+4|0xA0:A = band A B ; setFZ A ; setFNz ; setFHo ; setFCz
+4|0xA1:A = band A C ; setFZ A ; setFNz ; setFHo ; setFCz
+4|0xA2:A = band A D ; setFZ A ; setFNz ; setFHo ; setFCz
+4|0xA3:A = band A E ; setFZ A ; setFNz ; setFHo ; setFCz
+4|0xA4:A = band A H ; setFZ A ; setFNz ; setFHo ; setFCz
+4|0xA5:A = band A L ; setFZ A ; setFNz ; setFHo ; setFCz
+4|0xA6:A = band A rb HL ; setFZ A ; setFNz ; setFHo ; setFCz
+4|0xA7:A = band A A ; setFZ A ; setFNz ; setFHo ; setFCz
+
+4|0xA8:A = xor A B ; setFZ A ; setFNz ; setFHz ; setFCz
+4|0xA9:A = xor A C ; setFZ A ; setFNz ; setFHz ; setFCz
+4|0xAA:A = xor A D ; setFZ A ; setFNz ; setFHz ; setFCz
+4|0xAB:A = xor A E ; setFZ A ; setFNz ; setFHz ; setFCz
+4|0xAC:A = xor A H ; setFZ A ; setFNz ; setFHz ; setFCz
+4|0xAD:A = xor A L ; setFZ A ; setFNz ; setFHz ; setFCz
+8|0xAE:A = xor A rb HL ; setFZ A ; setFNz ; setFHz ; setFCz
+4|0xAF:A = xor A A ; setFZ A ; setFNz ; setFHz ; setFCz
+8|0xEE:A = xor A rbi PC ; setFZ A ; setFNz ; setFHz ; setFCz
+
+4|0xB0:A = bor A B ; setFZ A ; setFNz ; setFHz ; setFCz
+4|0xB1:A = bor A C ; setFZ A ; setFNz ; setFHz ; setFCz
+4|0xB2:A = bor A D ; setFZ A ; setFNz ; setFHz ; setFCz
+4|0xB3:A = bor A E ; setFZ A ; setFNz ; setFHz ; setFCz
+4|0xB4:A = bor A H ; setFZ A ; setFNz ; setFHz ; setFCz
+4|0xB5:A = bor A L ; setFZ A ; setFNz ; setFHz ; setFCz
+8|0xB6:A = bor A rb HL ; setFZ A ; setFNz ; setFHz ; setFCz
+4|0xB7:A = bor A A ; setFZ A ; setFNz ; setFHz ; setFCz
+
+8|0xF6:A = bor A rbi PC ; setFZ A ; setFHz ; setFCz ; setFNz
+8|0xE6:A = band A rbi PC ; setFZ A ; setFHo ; setFCz ; setFNz
 
 #cp
-4|0xBF:cpfunct A A
-4|0xB8:cpfunct A B
-4|0xB9:cpfunct A C
-4|0xBA:cpfunct A D
-4|0xBB:cpfunct A E
-4|0xBC:cpfunct A H
-4|0xBD:cpfunct A L
-8|0xBE:local t = rb HL ; cpfunct A t
-8|0xFE:local t = rbi PC ; cpfunct A t
+4|0xBF:cpfunct A A ; setFZ temp ; setFHs A A
+4|0xB8:cpfunct A B ; setFZ temp ; setFHs A B
+4|0xB9:cpfunct A C ; setFZ temp ; setFHs A C
+4|0xBA:cpfunct A D ; setFZ temp ; setFHs A D
+4|0xBB:cpfunct A E ; setFZ temp ; setFHs A E
+4|0xBC:cpfunct A H ; setFZ temp ; setFHs A H
+4|0xBD:cpfunct A L ; setFZ temp ; setFHs A L
+8|0xBE:local t = rb HL ; cpfunct A t ; setFZ temp ; setFHs A t
+8|0xFE:local t = rbi PC ; cpfunct A t ; setFZ temp ; setFHs A t
 
-#JR
-
+#JR --jump relative
 8|0x20:ifnz PC = PC + rbsi PC  ; incCyc 4 end
 8|0x28:ifz  PC = PC + rbsi PC  ; incCyc 4 end
+8|0x30:ifnc PC = PC + rbsi PC  ; incCyc 4 end
+8|0x38:ifc  PC = PC + rbsi PC  ; incCyc 4 end
 
-8|0x18:PC = PC + rbsi PC
+12|0x18:PC = PC + rbsi PC
 
+#JP
+12|0xC2:local temp = sxb rbi PC rbi PCP ifnz PC = temp incCyc 4 ; PC = PC - 2 ; end
+12|0xD2:local temp = sxb rbi PC rbi PCP ifnc PC = temp incCyc 4 ; PC = PC - 2 ; end
+16|0xC3:PC = rb PC + lsh rb PCP 8
+12|0xCA:local temp = sxb rbi PC rbi PCP ifz PC = temp incCyc 4 ; PC = PC - 2 ; end
+12|0xDA:local temp = sxb rbi PC rbi PCP ifc PC = temp incCyc 4 ; PC = PC - 2 ; end
+4|0xE9:PC = HL
 
 #call
-12|0xCD:SP = SP-2 ; wbb PCpt SP ; PC = sxb rb PC rb PCP
+24|0xCD:SP = SP-2 ; wbb PCpt SP ; PC = sxb rb PC rb PCP
+12|0xC4:local temp = sxb rbi PC rbi PCP ifnz SP = SP-2 ; wbb PCpt SP ; PC = temp-2 ; incCyc 12 end
+12|0xD4:local temp = sxb rbi PC rbi PCP ifnc SP = SP-2 ; wbb PCpt SP ; PC = temp-2 ; incCyc 12 end
+12|0xCC:local temp = sxb rbi PC rbi PCP ifz SP = SP-2 ; wbb PCpt SP ; PC = temp-2 ; incCyc 12 end
+12|0xDC:local temp = sxb rbi PC rbi PCP ifc SP = SP-2 ; wbb PCpt SP ; PC = temp-2 ; incCyc 12 end
+
+#rst
+16|0xC7:SP = SP-2 ; wbb PC SP ; PC = 0
+16|0xCF:SP = SP-2 ; wbb PC SP ; PC = 8
+16|0xD7:SP = SP-2 ; wbb PC SP ; PC = 16
+16|0xDF:SP = SP-2 ; wbb PC SP ; PC = 24
+16|0xE7:SP = SP-2 ; wbb PC SP ; PC = 32
+16|0xEF:SP = SP-2 ; wbb PC SP ; PC = 40
+16|0xF7:SP = SP-2 ; wbb PC SP ; PC = 48
+16|0xFF:SP = SP-2 ; wbb PC SP ; PC = 56
+
 #ret
-8|0xC9:local temp = rb SP ; SP = SP + 1 ; temp = sxb temp rb SP ; SP = SP + 1 ; PC = temp
+8|0xC8:ifz local temp = rb SP ; SP = SP + 1 ; temp = sxb temp rb SP ; SP = SP + 1 ; PC = temp ; incCyc 12 end
+8|0xD8:ifc local temp = rb SP ; SP = SP + 1 ; temp = sxb temp rb SP ; SP = SP + 1 ; PC = temp ; incCyc 12 end
+8|0xD0:ifnc local temp = rb SP ; SP = SP + 1 ; temp = sxb temp rb SP ; SP = SP + 1 ; PC = temp ; incCyc 12 end
+16|0xC9:local temp = rb SP ; SP = SP + 1 ; temp = sxb temp rb SP ; SP = SP + 1 ; PC = temp
+16|0xD9:local temp = rb SP ; SP = SP + 1 ; temp = sxb temp rb SP ; SP = SP + 1 ; PC = temp ; EI = true
 
-#rotate
-8|0x17:local temp = getFC ; A = lsh A 1 ; setFCa band A 256 ; A = bor A temp ; A = limit A ; setFZ A ; setFHz ; setFNz
+8|0xC0:ifnz local temp = rb SP ; SP = SP + 1 ; temp = sxb temp rb SP ; SP = SP + 1 ; PC = temp ; incCyc 12 end
 
+#left rotate
+4|0x07:local temp = band A 128 > 0 and 1 or 0 ; A = lsh A 1 ; setFCa band A 256 ; A = A + temp ; A = limit A ; setFZz ; setFHz ; setFNz
+4|0x17:local temp = getFC ; A = lsh A 1 ; setFCa band A 256 ; A = bor A temp ; A = limit A ; setFZz ; setFHz ; setFNz
+
+#right rotate
+4|0x0F:temp = band A 1 ; A = rsh A 1 ; if temp > 0 then A = A + 128 ; setFCo else setFCz end ; setFZz ; setFHz ; setFNz
+4|0x1F:temp = band A 1 ; A = rsh A 1 ; tem = getFC ; if temp > 0 then setFCo else setFCz end ; temp = tem > 0 and 128 or 0 ; A = A + temp ; setFZz ; setFHz ; setFNz
+
+#CPL
+4|0x2F:A = limit bnot A ; setFNo ; setFHo
+
+#DI/EI
+4|0xF3:EI = false
+4|0xFB:EI = true
+
+4|0x37:setFNz ; setFHz ; setFCo
+4|0x3F:setFNz ; setFHz ; if getFC > 0 then setFCz else setFCo end
+
+#DAA
+4|0x27: if getFN == 0 then if ( getFC > 0 ) or ( A > 153 ) then A = A + 96 ; A = limit A ; setFCo end if ( getFH > 0 ) or ( band A 15 > 9 ) then A = A + 6 ; A = limit A end else if getFC > 0 then A = A - 96 ; A = limit A end if getFH > 0 then A = A - 6 ; A = limit A end end setFZ A ; setFHz
+
+#HALT
+4|0x76: HALT = true
+4|0x10: HALT = true
 
 
 op cb.
 
-#4|0x7c:if band H sf then Z=one else Z=zero end
-8|0x7c:setFZ band H 128
+#RLC
+8|0x00:local temp = band B 128 > 0 and 1 or 0 ; B = lsh B 1 ; setFCa band B 256 ; B = B + temp ; B = limit B ; setFZ B ; setFHz ; setFNz
+8|0x01:local temp = band C 128 > 0 and 1 or 0 ; C = lsh C 1 ; setFCa band C 256 ; C = C + temp ; C = limit C ; setFZ C ; setFHz ; setFNz
+8|0x02:local temp = band D 128 > 0 and 1 or 0 ; D = lsh D 1 ; setFCa band D 256 ; D = D + temp ; D = limit D ; setFZ D ; setFHz ; setFNz
+8|0x03:local temp = band E 128 > 0 and 1 or 0 ; E = lsh E 1 ; setFCa band E 256 ; E = E + temp ; E = limit E ; setFZ E ; setFHz ; setFNz
+8|0x04:local temp = band H 128 > 0 and 1 or 0 ; H = lsh H 1 ; setFCa band H 256 ; H = H + temp ; H = limit H ; setFZ H ; setFHz ; setFNz
+8|0x05:local temp = band L 128 > 0 and 1 or 0 ; L = lsh L 1 ; setFCa band L 256 ; L = L + temp ; L = limit L ; setFZ L ; setFHz ; setFNz
+16|0x06:local t = rb HL ; local temp = band t 128 > 0 and 1 or 0 ; t = lsh t 1 ; setFCa band t 256 ; t = t + temp ; t = limit t ; setFZ t ; wb t HL ; setFHz ; setFNz
+8|0x07:local temp = band A 128 > 0 and 1 or 0 ; A = lsh A 1 ; setFCa band A 256 ; A = A + temp ; A = limit A ; setFZ A ; setFHz ; setFNz
+
+#RRC
+8|0x08:temp = band B 1 ; B = rsh B 1 ; if temp > 0 then B = B + 128 ; setFCo else setFCz end ; setFZ B ; setFHz ; setFNz
+8|0x09:temp = band C 1 ; C = rsh C 1 ; if temp > 0 then C = C + 128 ; setFCo else setFCz end ; setFZ C ; setFHz ; setFNz
+8|0x0A:temp = band D 1 ; D = rsh D 1 ; if temp > 0 then D = D + 128 ; setFCo else setFCz end ; setFZ D ; setFHz ; setFNz
+8|0x0B:temp = band E 1 ; E = rsh E 1 ; if temp > 0 then E = E + 128 ; setFCo else setFCz end ; setFZ E ; setFHz ; setFNz
+8|0x0C:temp = band H 1 ; H = rsh H 1 ; if temp > 0 then H = H + 128 ; setFCo else setFCz end ; setFZ H ; setFHz ; setFNz
+8|0x0D:temp = band L 1 ; L = rsh L 1 ; if temp > 0 then L = L + 128 ; setFCo else setFCz end ; setFZ L ; setFHz ; setFNz
+16|0x0E:t = rb HL ; temp = band t 1 ; t = rsh t 1 ; if temp > 0 then t = t + 128 ; setFCo else setFCz end wb t HL ; setFZ t ; setFHz ; setFNz
+8|0x0F:temp = band A 1 ; A = rsh A 1 ; if temp > 0 then A = A + 128 ; setFCo else setFCz end ; setFZ A ; setFHz ; setFNz
+
+#RL
+8|0x10:local temp = getFC ; B = lsh B 1 ; setFCa band B 256 ; B = bor B temp ; B = limit B ; setFZ B ; setFHz ; setFNz
 8|0x11:local temp = getFC ; C = lsh C 1 ; setFCa band C 256 ; C = bor C temp ; C = limit C ; setFZ C ; setFHz ; setFNz
+8|0x12:local temp = getFC ; D = lsh D 1 ; setFCa band D 256 ; D = bor D temp ; D = limit D ; setFZ D ; setFHz ; setFNz
+8|0x13:local temp = getFC ; E = lsh E 1 ; setFCa band E 256 ; E = bor E temp ; E = limit E ; setFZ E ; setFHz ; setFNz
+8|0x14:local temp = getFC ; H = lsh H 1 ; setFCa band H 256 ; H = bor H temp ; H = limit H ; setFZ H ; setFHz ; setFNz
+8|0x15:local temp = getFC ; L = lsh L 1 ; setFCa band L 256 ; L = bor L temp ; L = limit L ; setFZ L ; setFHz ; setFNz
+16|0x16:local t = rb HL ; local temp = getFC ; t = lsh t 1 ; setFCa band t 256 ; t = bor t temp ; t = limit t ; wb t HL ; setFZ t ; setFHz ; setFNz
+8|0x17:local temp = getFC ; A = lsh A 1 ; setFCa band A 256 ; A = bor A temp ; A = limit A ; setFZ A ; setFHz ; setFNz
+
+#RR
+8|0x18:local temp = band B 1 ; B = rsh B 1 ; local tem = getFC ; if temp > 0 then setFCo else setFCz end ; temp = tem > 0 and 128 or 0 ; B = B + temp ; setFZ B ; setFHz ; setFNz
+8|0x19:local temp = band C 1 ; C = rsh C 1 ; local tem = getFC ; if temp > 0 then setFCo else setFCz end ; temp = tem > 0 and 128 or 0 ; C = C + temp ; setFZ C ; setFHz ; setFNz
+8|0x1A:local temp = band D 1 ; D = rsh D 1 ; local tem = getFC ; if temp > 0 then setFCo else setFCz end ; temp = tem > 0 and 128 or 0 ; D = D + temp ; setFZ D ; setFHz ; setFNz
+8|0x1B:local temp = band E 1 ; E = rsh E 1 ; local tem = getFC ; if temp > 0 then setFCo else setFCz end ; temp = tem > 0 and 128 or 0 ; E = E + temp ; setFZ E ; setFHz ; setFNz
+8|0x1C:local temp = band H 1 ; H = rsh H 1 ; local tem = getFC ; if temp > 0 then setFCo else setFCz end ; temp = tem > 0 and 128 or 0 ; H = H + temp ; setFZ H ; setFHz ; setFNz
+8|0x1D:local temp = band L 1 ; L = rsh L 1 ; local tem = getFC ; if temp > 0 then setFCo else setFCz end ; temp = tem > 0 and 128 or 0 ; L = L + temp ; setFZ L ; setFHz ; setFNz
+16|0x1E:local t = rb HL; local temp = band t 1 ; t = rsh t 1 ; local tem = getFC ; if temp > 0 then setFCo else setFCz end ; temp = tem > 0 and 128 or 0 ; t = t + temp ; wb t HL ; setFZ t ; setFHz ; setFNz
+8|0x1F:local temp = band A 1 ; A = rsh A 1 ; local tem = getFC ; if temp > 0 then setFCo else setFCz end ; temp = tem > 0 and 128 or 0 ; A = A + temp ; setFZ A ; setFHz ; setFNz
+
+#SLA
+8|0x20:setFCa band B 128 ; B = lsh B 1 ; B = limit B ; setFZ B ; setFHz ; setFNz
+8|0x21:setFCa band C 128 ; C = lsh C 1 ; C = limit C ; setFZ C ; setFHz ; setFNz
+8|0x22:setFCa band D 128 ; D = lsh D 1 ; D = limit D ; setFZ D ; setFHz ; setFNz
+8|0x23:setFCa band E 128 ; E = lsh E 1 ; E = limit E ; setFZ E ; setFHz ; setFNz
+8|0x24:setFCa band H 128 ; H = lsh H 1 ; H = limit H ; setFZ H ; setFHz ; setFNz
+8|0x25:setFCa band L 128 ; L = lsh L 1 ; L = limit L ; setFZ L ; setFHz ; setFNz
+16|0x26:local t = rb HL ; setFCa band t 128 ; t = lsh t 1 ; t = limit t ; wb t HL ; setFZ t ; setFHz ; setFNz
+8|0x27:setFCa band A 128 ; A = lsh A 1 ; A = limit A ; setFZ A ; setFHz ; setFNz
+
+#SRA
+8|0x28:local t = band B 128 ; temp = band B 1 ; B = rsh B 1 ; B = B + t ; if temp > 0 then setFCo else setFCz end ; setFZ B ; setFHz ; setFNz
+8|0x29:local t = band C 128 ; temp = band C 1 ; C = rsh C 1 ; C = C + t ; if temp > 0 then setFCo else setFCz end ; setFZ C ; setFHz ; setFNz
+8|0x2A:local t = band D 128 ; temp = band D 1 ; D = rsh D 1 ; D = D + t ; if temp > 0 then setFCo else setFCz end ; setFZ D ; setFHz ; setFNz
+8|0x2B:local t = band E 128 ; temp = band E 1 ; E = rsh E 1 ; E = E + t ; if temp > 0 then setFCo else setFCz end ; setFZ E ; setFHz ; setFNz
+8|0x2C:local t = band H 128 ; temp = band H 1 ; H = rsh H 1 ; H = H + t ; if temp > 0 then setFCo else setFCz end ; setFZ H ; setFHz ; setFNz
+8|0x2D:local t = band L 128 ; temp = band L 1 ; L = rsh L 1 ; L = L + t ; if temp > 0 then setFCo else setFCz end ; setFZ L ; setFHz ; setFNz
+16|0x2E:local t = rb HL ; local tem = band t 128 ; temp = band t 1 ; t = rsh t 1 ; t = t + tem ; if temp > 0 then setFCo else setFCz end ; wb t HL ; setFZ t ; setFHz ; setFNz
+8|0x2F:local t = band A 128 ; temp = band A 1 ; A = rsh A 1 ; A = A + t ; if temp > 0 then setFCo else setFCz end ; setFZ A ; setFHz ; setFNz
+
+#SWAP
+8|0x30:B = swap B B ; setFZ B ; setFNz ; setFHz ; setFCz
+8|0x31:C = swap C C ; setFZ C ; setFNz ; setFHz ; setFCz
+8|0x32:D = swap D D ; setFZ D ; setFNz ; setFHz ; setFCz
+8|0x33:E = swap E E ; setFZ E ; setFNz ; setFHz ; setFCz
+8|0x34:H = swap H H ; setFZ H ; setFNz ; setFHz ; setFCz
+8|0x35:L = swap L L ; setFZ L ; setFNz ; setFHz ; setFCz
+16|0x36:local t = rb HL ; t = swap t t ; wb t HL ; setFZ t ; setFNz ; setFHz ; setFCz
+8|0x37:A = swap A A ; setFZ A ; setFNz ; setFHz ; setFCz
+
+#SRL
+8|0x38:temp = band B 1 ; B = rsh B 1 ; if temp > 0 then setFCo else setFCz end ; setFZ B ; setFHz ; setFNz
+8|0x39:temp = band C 1 ; C = rsh C 1 ; if temp > 0 then setFCo else setFCz end ; setFZ C ; setFHz ; setFNz
+8|0x3A:temp = band D 1 ; D = rsh D 1 ; if temp > 0 then setFCo else setFCz end ; setFZ D ; setFHz ; setFNz
+8|0x3B:temp = band E 1 ; E = rsh E 1 ; if temp > 0 then setFCo else setFCz end ; setFZ E ; setFHz ; setFNz
+8|0x3C:temp = band H 1 ; H = rsh H 1 ; if temp > 0 then setFCo else setFCz end ; setFZ H ; setFHz ; setFNz
+8|0x3D:temp = band L 1 ; L = rsh L 1 ; if temp > 0 then setFCo else setFCz end ; setFZ L ; setFHz ; setFNz
+16|0x3E:local t = rb HL ; temp = band t 1 ; t = rsh t 1 ; if temp > 0 then setFCo else setFCz end ; wb t HL ; setFZ t ; setFHz ; setFNz
+8|0x3F:temp = band A 1 ; A = rsh A 1 ; if temp > 0 then setFCo else setFCz end ; setFZ A ; setFHz ; setFNz
+
+#BIT 0
+8|0x40:setFZ band B 1 ; setFNz ; setFHo
+8|0x41:setFZ band C 1 ; setFNz ; setFHo
+8|0x42:setFZ band D 1 ; setFNz ; setFHo
+8|0x43:setFZ band E 1 ; setFNz ; setFHo
+8|0x44:setFZ band H 1 ; setFNz ; setFHo
+8|0x45:setFZ band L 1 ; setFNz ; setFHo
+12|0x46:setFZ band rb HL 1 ; setFNz ; setFHo
+8|0x47:setFZ band A 1 ; setFNz ; setFHo
+#BIT 1
+8|0x48:setFZ band B 2 ; setFNz ; setFHo
+8|0x49:setFZ band C 2 ; setFNz ; setFHo
+8|0x4A:setFZ band D 2 ; setFNz ; setFHo
+8|0x4B:setFZ band E 2 ; setFNz ; setFHo
+8|0x4C:setFZ band H 2 ; setFNz ; setFHo
+8|0x4D:setFZ band L 2 ; setFNz ; setFHo
+12|0x4E:setFZ band rb HL 2 ; setFNz ; setFHo
+8|0x4F:setFZ band A 2 ; setFNz ; setFHo
+#BIT 2
+8|0x50:setFZ band B 4 ; setFNz ; setFHo
+8|0x51:setFZ band C 4 ; setFNz ; setFHo
+8|0x52:setFZ band D 4 ; setFNz ; setFHo
+8|0x53:setFZ band E 4 ; setFNz ; setFHo
+8|0x54:setFZ band H 4 ; setFNz ; setFHo
+8|0x55:setFZ band L 4 ; setFNz ; setFHo
+12|0x56:setFZ band rb HL 4 ; setFNz ; setFHo
+8|0x57:setFZ band A 4 ; setFNz ; setFHo
+#BIT 3
+8|0x58:setFZ band B 8 ; setFNz ; setFHo
+8|0x59:setFZ band C 8 ; setFNz ; setFHo
+8|0x5A:setFZ band D 8 ; setFNz ; setFHo
+8|0x5B:setFZ band E 8 ; setFNz ; setFHo
+8|0x5C:setFZ band H 8 ; setFNz ; setFHo
+8|0x5D:setFZ band L 8 ; setFNz ; setFHo
+12|0x5E:setFZ band rb HL 8 ; setFNz ; setFHo
+8|0x5F:setFZ band A 8 ; setFNz ; setFHo
+#BIT 4
+8|0x60:setFZ band B 16 ; setFNz ; setFHo
+8|0x61:setFZ band C 16 ; setFNz ; setFHo
+8|0x62:setFZ band D 16 ; setFNz ; setFHo
+8|0x63:setFZ band E 16 ; setFNz ; setFHo
+8|0x64:setFZ band H 16 ; setFNz ; setFHo
+8|0x65:setFZ band L 16 ; setFNz ; setFHo
+12|0x66:setFZ band rb HL 16 ; setFNz ; setFHo
+8|0x67:setFZ band A 16 ; setFNz ; setFHo
+#BIT 5
+8|0x68:setFZ band B 32 ; setFNz ; setFHo
+8|0x69:setFZ band C 32 ; setFNz ; setFHo
+8|0x6A:setFZ band D 32 ; setFNz ; setFHo
+8|0x6B:setFZ band E 32 ; setFNz ; setFHo
+8|0x6C:setFZ band H 32 ; setFNz ; setFHo
+8|0x6D:setFZ band L 32 ; setFNz ; setFHo
+12|0x6E:setFZ band rb HL 32 ; setFNz ; setFHo
+8|0x6F:setFZ band A 32 ; setFNz ; setFHo
+#BIT 6
+8|0x70:setFZ band B 64 ; setFNz ; setFHo
+8|0x71:setFZ band C 64 ; setFNz ; setFHo
+8|0x72:setFZ band D 64 ; setFNz ; setFHo
+8|0x73:setFZ band E 64 ; setFNz ; setFHo
+8|0x74:setFZ band H 64 ; setFNz ; setFHo
+8|0x75:setFZ band L 64 ; setFNz ; setFHo
+12|0x76:setFZ band rb HL 64 ; setFNz ; setFHo
+8|0x77:setFZ band A 64 ; setFNz ; setFHo
+#BIT 7
+8|0x78:setFZ band B 128 ; setFNz ; setFHo
+8|0x79:setFZ band C 128 ; setFNz ; setFHo
+8|0x7A:setFZ band D 128 ; setFNz ; setFHo
+8|0x7B:setFZ band E 128 ; setFNz ; setFHo
+8|0x7C:setFZ band H 128 ; setFNz ; setFHo
+8|0x7D:setFZ band L 128 ; setFNz ; setFHo
+12|0x7E:setFZ band rb HL 128 ; setFNz ; setFHo
+8|0x7F:setFZ band A 128 ; setFNz ; setFHo
+
+#RES 0
+8|0x80:B = band B 254
+8|0x81:C = band C 254
+8|0x82:D = band D 254
+8|0x83:E = band E 254
+8|0x84:H = band H 254
+8|0x85:L = band L 254
+16|0x86:wb band rb HL 254 HL
+8|0x87:A = band A 254
+#RES 1
+8|0x88:B = band B 253
+8|0x89:C = band C 253
+8|0x8A:D = band D 253
+8|0x8B:E = band E 253
+8|0x8C:H = band H 253
+8|0x8D:L = band L 253
+16|0x8E:wb band rb HL 253 HL
+8|0x8F:A = band A 253
+#RES 2
+8|0x90:B = band B 251
+8|0x91:C = band C 251
+8|0x92:D = band D 251
+8|0x93:E = band E 251
+8|0x94:H = band H 251
+8|0x95:L = band L 251
+16|0x96:wb band rb HL 251 HL
+8|0x97:A = band A 251
+#RES 3
+8|0x98:B = band B 247
+8|0x99:C = band C 247
+8|0x9A:D = band D 247
+8|0x9B:E = band E 247
+8|0x9C:H = band H 247
+8|0x9D:L = band L 247
+16|0x9E:wb band rb HL 247 HL
+8|0x9F:A = band A 247
+#RES 4
+8|0xA0:B = band B 239
+8|0xA1:C = band C 239
+8|0xA2:D = band D 239
+8|0xA3:E = band E 239
+8|0xA4:H = band H 239
+8|0xA5:L = band L 239
+16|0xA6:wb band rb HL 239 HL
+8|0xA7:A = band A 239
+#RES 5
+8|0xA8:B = band B 223
+8|0xA9:C = band C 223
+8|0xAA:D = band D 223
+8|0xAB:E = band E 223
+8|0xAC:H = band H 223
+8|0xAD:L = band L 223
+16|0xAE:wb band rb HL 223 HL
+8|0xAF:A = band A 223
+#RES 6
+8|0xB0:B = band B 191
+8|0xB1:C = band C 191
+8|0xB2:D = band D 191
+8|0xB3:E = band E 191
+8|0xB4:H = band H 191
+8|0xB5:L = band L 191
+16|0xB6:wb band rb HL 191 HL
+8|0xB7:A = band A 191
+#RES 7
+8|0xB8:B = band B 127
+8|0xB9:C = band C 127
+8|0xBA:D = band D 127
+8|0xBB:E = band E 127
+8|0xBC:H = band H 127
+8|0xBD:L = band L 127
+16|0xBE:wb band rb HL 127 HL
+8|0xBF:A = band A 127
+
+#SET 0
+8|0xC0:B = bor B 1
+8|0xC1:C = bor C 1
+8|0xC2:D = bor D 1
+8|0xC3:E = bor E 1
+8|0xC4:H = bor H 1
+8|0xC5:L = bor L 1
+16|0xC6:wb bor rb HL 1 HL
+8|0xC7:A = bor A 1
+#SET 1
+8|0xC8:B = bor B 2
+8|0xC9:C = bor C 2
+8|0xCA:D = bor D 2
+8|0xCB:E = bor E 2
+8|0xCC:H = bor H 2
+8|0xCD:L = bor L 2
+16|0xCE:wb bor rb HL 2 HL
+8|0xCF:A = bor A 2
+#SET 2
+8|0xD0:B = bor B 4
+8|0xD1:C = bor C 4
+8|0xD2:D = bor D 4
+8|0xD3:E = bor E 4
+8|0xD4:H = bor H 4
+8|0xD5:L = bor L 4
+16|0xD6:wb bor rb HL 4 HL
+8|0xD7:A = bor A 4
+#SET 3
+8|0xD8:B = bor B 8
+8|0xD9:C = bor C 8
+8|0xDA:D = bor D 8
+8|0xDB:E = bor E 8
+8|0xDC:H = bor H 8
+8|0xDD:L = bor L 8
+16|0xDE:wb bor rb HL 8 HL
+8|0xDF:A = bor A 8
+#SET 4
+8|0xE0:B = bor B 16
+8|0xE1:C = bor C 16
+8|0xE2:D = bor D 16
+8|0xE3:E = bor E 16
+8|0xE4:H = bor H 16
+8|0xE5:L = bor L 16
+16|0xE6:wb bor rb HL 16 HL
+8|0xE7:A = bor A 16
+#SET 5
+8|0xE8:B = bor B 32
+8|0xE9:C = bor C 32
+8|0xEA:D = bor D 32
+8|0xEB:E = bor E 32
+8|0xEC:H = bor H 32
+8|0xED:L = bor L 32
+16|0xEE:wb bor rb HL 32 HL
+8|0xEF:A = bor A 32
+#SET 6
+8|0xF0:B = bor B 64
+8|0xF1:C = bor C 64
+8|0xF2:D = bor D 64
+8|0xF3:E = bor E 64
+8|0xF4:H = bor H 64
+8|0xF5:L = bor L 64
+16|0xF6:wb bor rb HL 64 HL
+8|0xF7:A = bor A 64
+#SET 7
+8|0xF8:B = bor B 128
+8|0xF9:C = bor C 128
+8|0xFA:D = bor D 128
+8|0xFB:E = bor E 128
+8|0xFC:H = bor H 128
+8|0xFD:L = bor L 128
+16|0xFE:wb bor rb HL 128 HL
+8|0xFF:A = bor A 128
+
