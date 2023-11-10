@@ -135,6 +135,8 @@ local function mmu(file)
 		elseif addr >= 0xE000 and addr <= 0xFDFF then--shadow
 			--print("to ram copy")
 			self.workingRam[addr-0xE000] = byte
+		elseif addr >= 0xFE00 and addr <= 0xFE9F then--gpu OAM map
+			self.gpu.updateOAM(addr,byte)
 		elseif addr >= 0xFF00 and addr <= 0xFF7F then
 			--print(byte,string.format("%02x",addr))
 			if addr == 0xFF00 then--controler
@@ -142,9 +144,9 @@ local function mmu(file)
 			elseif addr == 0xFF01 then
 				--print("serial transfer byte set to")
 				--print(byte,string.char(byte))
-				serialstr = serialstr..string.char(byte)
+				--serialstr = serialstr..string.char(byte)
 				--print(serialstr)
-				io.write(string.char(byte))
+				--io.write(string.char(byte))
 			elseif addr == 0xFF02 then
 				--print("serial transfer control set to")
 				--print(byte)
@@ -166,18 +168,53 @@ local function mmu(file)
 				self.gpu.scrollY = byte
 			elseif addr == 0xFF43 then
 				self.gpu.scrollX = byte
+			elseif addr == 0xFF46 then--OAM DMA write https://gbdev.io/pandocs/OAM_DMA_Transfer.html#oam-dma-transfer
+				--todo DMA bus conflicts: cpu can only read from HRAM
+				for i = 0,159 do
+					local b = self.getByte(bit.lshift(byte,8)+i)
+					self.setByte(b,0xFE00+i)
+				end
 			elseif addr == 0xFF47 then--bg pallete
 				--print("palette",byte)
 				for i = 0,3 do
 					local v = bit.band(bit.rshift(byte,i*2),3)
 					if v == 0 then
-						self.gpu.palette[i] = {1,1,1}--white
+						self.gpu.palette[i] = 1--white
 					elseif v == 1 then
-						self.gpu.palette[i] = {0.6,0.6,0.6}--light gray
+						self.gpu.palette[i] = 2--light gray
 					elseif v == 2 then
-						self.gpu.palette[i] = {0.3,0.3,0.3}--dark gray
+						self.gpu.palette[i] = 3--dark gray
 					elseif v == 3 then
-						self.gpu.palette[i] = {0,0,0}--black
+						self.gpu.palette[i] = 4--black
+					end
+				end
+			elseif addr == 0xFF48 then--ob0 pallete
+				print("palette 0",byte)
+				for i = 0,3 do
+					local v = bit.band(bit.rshift(byte,i*2),3)
+					if v == 0 then
+						self.gpu.obp0[i] = 1--white
+					elseif v == 1 then
+						self.gpu.obp0[i] = 2--light gray
+					elseif v == 2 then
+						self.gpu.obp0[i] = 3--dark gray
+					elseif v == 3 then
+						self.gpu.obp0[i] = 4--black
+					end
+				end
+				printTable(self.gpu.obp0)
+			elseif addr == 0xFF49 then--ob1 pallete
+				print("palette 1",byte)
+				for i = 0,3 do
+					local v = bit.band(bit.rshift(byte,i*2),3)
+					if v == 0 then
+						self.gpu.obp1[i] = 1--white
+					elseif v == 1 then
+						self.gpu.obp1[i] = 2--light gray
+					elseif v == 2 then
+						self.gpu.obp1[i] = 3--dark gray
+					elseif v == 3 then
+						self.gpu.obp1[i] = 4--black
 					end
 				end
 				--printTable(self.gpu.palette)

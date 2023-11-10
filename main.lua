@@ -64,9 +64,10 @@ end
 
 function loveload(args)
 	
-	local f = io.open("dmgops.json","r")
-	local d = f:read("*a")
-	f:close()
+	--local f = io.open("dmgops.json","r")
+	--local d = f:read("*a")
+	--f:close()
+	local d,_ = love.filesystem.read("dmgops.json")
 	jdataP = json.decode(d).CBPrefixed
 	jdataU = json.decode(d).Unprefixed
 	
@@ -123,7 +124,7 @@ function loveload(args)
 	cstep = 1337
 	breakPointList = {}
 	
-	running = false
+	running = true
 	
 	
 	canvas = love.graphics.newCanvas(160,144)
@@ -144,6 +145,13 @@ function loveload(args)
 	
 	instToBeRun = ""
 	
+	colorPalette = {
+	{1,1,1},
+	{0.6,0.6,0.6},
+	{0.3,0.3,0.3},
+	{0,0,0}
+	}
+	
 end
 
 function loveupdate(dt)
@@ -151,6 +159,7 @@ function loveupdate(dt)
 	--4194304hz
 	if running then
 		targetCycles = 4194304*(dt/2)
+		if love.keyboard.isDown(".") then targetCycles = targetCycles * 5 end
 		startCycles = gbCPU.cycles
 		while gbCPU.cycles-startCycles < targetCycles do
 			gbCPU.executeInstruction()
@@ -199,7 +208,9 @@ function loveupdate(dt)
 			for y = 0,143 do
 				c = gbCPU.gpu.scrdata[x][y]
 				if c then
-					love.graphics.setColor(gbCPU.gpu.palette[c])
+					--love.graphics.setColor(gbCPU.gpu.palette[c])
+					if not colorPalette[c] then printTable(c) ; print("c") end
+					love.graphics.setColor(colorPalette[c])
 					love.graphics.points(x,y)
 				end
 			end
@@ -252,6 +263,7 @@ function loveupdate(dt)
 	if countwin then
 		Slab.BeginWindow("count",{Title="Frame count",X = 200,Y = 410})--,AllowResize = true,AutoSizeWindow = false})
 			Slab.Text("Count: "..count)
+			Slab.Text(gbCPU.gpu.frames)
 		Slab.EndWindow()
 		count = count + 1
 	end
@@ -746,6 +758,14 @@ function loveupdate(dt)
 			printLinkPort()
 		end
 	end
+	if love.keyboard.isDown("up") then gbCPU.joy.buttons.Up = 0 else gbCPU.joy.buttons.Up = 1 end
+	if love.keyboard.isDown("down") then gbCPU.joy.buttons.Down = 0 else gbCPU.joy.buttons.Down = 1 end
+	if love.keyboard.isDown("left") then gbCPU.joy.buttons.Left = 0 else gbCPU.joy.buttons.Left = 1 end
+	if love.keyboard.isDown("right") then gbCPU.joy.buttons.Right = 0 else gbCPU.joy.buttons.Right = 1 end
+	if love.keyboard.isDown("return") then gbCPU.joy.buttons.Start = 0 else gbCPU.joy.buttons.Start = 1 end
+	if love.keyboard.isDown("pagedown") then gbCPU.joy.buttons.Select = 0 else gbCPU.joy.buttons.Select = 1 end
+	if love.keyboard.isDown("a") then gbCPU.joy.buttons.A = 0 else gbCPU.joy.buttons.A = 1 end
+	if love.keyboard.isDown("b") then gbCPU.joy.buttons.B = 0 else gbCPU.joy.buttons.B = 1 end
 end
 
 function lovedraw()

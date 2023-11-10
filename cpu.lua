@@ -36,8 +36,8 @@ local function CPU()
 	--printTable(jdata.Unprefixed)
 	
 	local self = {}
-	--local mem = mmu("Tetris.gb")
-	local mem = mmu("Dr. Mario (World).gb")
+	local mem = mmu("Tetris.gb")
+	--local mem = mmu("Dr. Mario (World).gb")
 	--local mem = mmu("Asteroids (USA, Europe).gb")
 	--local mem = mmu("Pokemon - Blue Version (USA, Europe) (SGB Enhanced).gb")
 	--local mem = mmu("Space Invaders (Japan).gb")

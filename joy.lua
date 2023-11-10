@@ -22,22 +22,22 @@ local function joy()
 	end
 	
 	function self.rb()
-		if self.bank == 0x10 then
+		if self.bank == 0x20 then
 			local b =  bit.bor(self.bank,0xC0)--match bgb
-			b = b +            self.buttons.Down
-			b = b + bit.lshift(self.buttons.Up,1)
-			b = b + bit.lshift(self.buttons.Left,2)
-			b = b + bit.lshift(self.buttons.Right,3)
+			b = b +            self.buttons.Right
+			b = b + bit.lshift(self.buttons.Left,1)
+			b = b + bit.lshift(self.buttons.Up,2)
+			b = b + bit.lshift(self.buttons.Down,3)
 			return b
-		elseif self.bank == 0x20 then
+		elseif self.bank == 0x10 then
 			local b =  bit.bor(self.bank,0xC0)
-			b = b +            self.buttons.Start
-			b = b + bit.lshift(self.buttons.Select,1)
-			b = b + bit.lshift(self.buttons.B,2)
-			b = b + bit.lshift(self.buttons.A,3)
+			b = b +            self.buttons.A
+			b = b + bit.lshift(self.buttons.B,1)
+			b = b + bit.lshift(self.buttons.Select,2)
+			b = b + bit.lshift(self.buttons.Start,3)
 			return b
 		else
-			return 0
+			return 0x0F
 		end
 	end
 	self.reset()

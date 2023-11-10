@@ -14,13 +14,11 @@ local function gpu()
 	}
 	
 	function self.reset()
-		self.buffer = {}
 		self.scrollX = 0
 		self.scrollY = 0
 		self.bgtilemap = {}
 		
 		self.bgtile = 0
-		self.bmap = 0
 		
 		self.tileSet = {}
 		for i = 0,511 do
@@ -33,12 +31,14 @@ local function gpu()
 			end
 		end
 		
-		self.palette = {}
+		self.oam = {}
+		for i = 1,40 do
+			self.oam[i] = {0,0,0,0}--y,x,index,flags
+		end
 		
-		self.palette[3] = {1,1,1}--white
-		self.palette[2] = {0.6,0.6,0.6}--light gray
-		self.palette[1] = {0.3,0.3,0.3}--dark gray
-		self.palette[0] = {0,0,0}--black
+		self.palette = {4,3,2,1}
+		self.obp0 = {4,3,2}
+		self.obp1 = {1,2,3}
 		
 		self.vram = {}
 		for i = 0,0x2000 do
@@ -49,7 +49,7 @@ local function gpu()
 		for x = 0,160 do
 			self.scrdata[x] = {}
 			for y = 0,144 do
-				self.scrdata[x][y] = 0
+				self.scrdata[x][y] = 1
 			end
 		end
 		
@@ -67,6 +67,7 @@ local function gpu()
 		self.bgtile = false
 		self.winEnable = false
 		self.switchlcd = false
+		self.frames = 0
 	end
 	
 	function self.updateLine(dt)
@@ -90,6 +91,8 @@ local function gpu()
 					self.line = 0
 					self.lineMode = 2
 					--self.mmu.setByte(bit.band(self.mmu.getByte(0xFF0F),0xFE),0xFF0F)
+					self.frames = self.frames + 1
+					--print("frame",self.frames)
 				end
 			end
 		elseif self.lineMode == 2 then--OAM scan
@@ -103,6 +106,13 @@ local function gpu()
 				self.lineMode = 0
 			end
 		end
+	end
+	
+	function self.updateOAM(addr,val)
+		local n = bit.band(addr,0xFF)
+		local tilenum = math.floor(n/4)
+		local b = n-(tilenum*4)
+		self.oam[tilenum+1][b+1] = val
 	end
 	
 	function self.updateTile(addr,val)
@@ -138,38 +148,73 @@ local function gpu()
 			local tilex = math.floor(x/8)
 			local tiley = math.floor(y/8)
 			local n = (tiley*32)+tilex
-			if gbCPU.gpu.bgmap then
+			if self.bgmap then
 				n = n + 0x9C00
 			else
 				n = n + 0x9800
 			end
-			if not gbCPU.gpu.bgtile then
-				tilenum = gbCPU.gpu.vram[bit.band(n,0x1FFF)]
+			if not self.bgtile then
+				tilenum = self.vram[bit.band(n,0x1FFF)]
 				if bit.band(tilenum,0x80) > 0 then
 					tilenum = -(bit.band(bit.bnot(tilenum),0xFF)+1)
 				end
 				tilenum = 256+tilenum
 			else
-				tilenum = gbCPU.gpu.vram[bit.band(n,0x1FFF)]
+				tilenum = self.vram[bit.band(n,0x1FFF)]
 			end
-			local tile = gbCPU.gpu.tileSet[tilenum]
+			local tile = self.tileSet[tilenum]
 			if tile then 
-				self.scrdata[xx][self.line] = tile[y%8][x%8] 
+				--self.scrdata[xx][self.line] = tile[y%8][x%8] 
+				self.scrdata[xx][self.line] = self.palette[tile[y%8][x%8]] 
 			else 
-				self.scrdata[xx][self.line] = 0 
+				self.scrdata[xx][self.line] = 1
 			end
+			
+			for i = 1,40 do
+				if self.oam[i][1] > line+8 and self.oam[i][1] <= line+16 then--y pos
+					if self.oam[i][2] > x and self.oam[i][2] <= x+8 then--x pos
+						--printTable(self.oam[i])
+						local ll = self.oam[i][1]-16
+						local xxx = self.oam[i][2]-8
+						--print(line-ll)
+						ll = line-ll
+						xxx = x-xxx
+						if bit.band(self.oam[i][4],0x20) > 0 then
+							xxx = 7-xxx
+						end
+						--print(line,x,ll,xxx)
+						
+						local t = self.tileSet[self.oam[i][3]]
+						local p = t[ll][xxx]
+						--print(p)
+						if p ~= 0 then
+							--printTable(self.oam[i])
+							--print(line,x,ll,xxx)
+							--print(p)
+							if (not (bit.band(self.oam[i][4],0x80) > 0)) or ((bit.band(self.oam[i][4],0x80) > 0) and self.scrdata[xx][self.line] == 1) then
+								if bit.band(self.oam[i][4],0x10) > 0 then
+									self.scrdata[xx][self.line] = self.obp1[p]
+								else
+									self.scrdata[xx][self.line] = self.obp0[p]
+								end
+							end
+						end
+					end
+				end
+			end
+			
 		end
 	end
 	
 	function self.step(dt)
-		if mode == 2 then
+		if self.mode == 2 then
 			--OAM read, scanline is active
 			if self.clock >= 80 then
 				self.clock = 0
 				--self.clock = self.clock-80
 				self.mode = 3
 			end
-		elseif mode == 3 then
+		elseif self.mode == 3 then
 			--vram read mode, scanline is active
 			--end of scanline
 			if self.clock >= 172 then
@@ -179,31 +224,31 @@ local function gpu()
 				
 				self.renderScanLine()
 			end
-		elseif mode == 0 then
+		elseif self.mode == 0 then
 			--hblank
 			if self.clock >= 204 then
-					self.clock = 0
-					--self.clock = self.clock-204
-					self.line = self.line + 1
-					
-					if self.line == 143 then
-						--enter vblank
-						self.mode = 1
-						self.renderCanvas()
-					else
-						--start next line
-						self.mode = 2
-					end
+				self.clock = 0
+				--self.clock = self.clock-204
+				self.line = self.line + 1
+				
+				if self.line == 143 then
+					--enter vblank
+					self.mode = 1
+					self.renderCanvas()
+				else
+					--start next line
+					self.mode = 2
+				end
 			end
-		elseif mode == 1 then
+		elseif self.mode == 1 then
 			--vblank for 10 lines
 			if self.clock >= 456 then
 				self.clock = 0
 				--self.clock = self.clock-456
 				self.line = self.line + 1
 				if self.line > 153 then
-						self.mode = 2
-						self.line = 0
+					self.mode = 2
+					self.line = 0
 				end
 			end
 		end
