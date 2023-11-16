@@ -1,7 +1,6 @@
 local Slab = require("Slab.Slab")
 --local json = require("cjson")
 local json = require("json")
-
 --[[
 ideas
 
@@ -38,8 +37,8 @@ function printTable(tabl, wid)
 		elseif type(v) == "number" then
 			print(string.rep(" ", wid * 3) .. "[" .. i .. "] = " .. v..",")
 			if v == nil then error("nan") end
-		end 
-	end 
+		end
+	end
 end
 
 --rdat = io.open("record.json","r")
@@ -63,16 +62,16 @@ function string.split (str,sep)
 end
 
 function loveload(args)
-	
+
 	--local f = io.open("dmgops.json","r")
 	--local d = f:read("*a")
 	--f:close()
 	local d,_ = love.filesystem.read("dmgops.json")
 	jdataP = json.decode(d).CBPrefixed
 	jdataU = json.decode(d).Unprefixed
-	
+
 	Slab.Initialize(args)
-	
+
 	--gbCPU.executeInstruction()
 	--gbCPU.executeInstruction()
 	--love.keyboard.setKeyRepeat(true)
@@ -81,8 +80,8 @@ function loveload(args)
 	--local cpu = require("cpu")
 	local gen = require("geninst")
 	debg = false
-	if arg[#arg] == "-debug" then 
-		require("mobdebug").start() 
+	if arg[#arg] == "-debug" then
+		require("mobdebug").start()
 		debg = true
 	end
 
@@ -100,10 +99,10 @@ function loveload(args)
 	file:write(dat)
 	file:close()
 	local cpu = require("cpu2")
-	
+
 	gbCPU = cpu()
 	love.graphics.setBackgroundColor(0.4, 0.88, 1.0)
-	
+
 	consolas = love.graphics.newFont("consola.ttf",12)
 	--print(consolas)
 	--love.graphics.setFont(consolas)
@@ -123,10 +122,10 @@ function loveload(args)
 	follow = false
 	cstep = 1337
 	breakPointList = {}
-	
+
 	running = true
-	
-	
+
+
 	canvas = love.graphics.newCanvas(160,144)
 	canvas:setFilter("linear","nearest")
 	love.graphics.setCanvas(canvas)
@@ -134,24 +133,42 @@ function loveload(args)
 	love.graphics.circle("fill",50,50,10)
 	love.graphics.setCanvas()
 	angle = 0
-	
+
 	tiles1 = love.graphics.newCanvas(8*16,8*24)
 	canvas1 = love.graphics.newCanvas(32*8,32*8)
 	lcdCanvas = love.graphics.newCanvas(160,144)
+	lcdCanvas:setFilter("linear","nearest")
 	Slab.DisableDocks{"Left","Right","Bottom"}
 	count = 0
-	
+
 	epicLog = io.open("Blargg2.txt","r")
-	
+
 	instToBeRun = ""
-	
+
 	colorPalette = {
 	{1,1,1},
 	{0.6,0.6,0.6},
 	{0.3,0.3,0.3},
 	{0,0,0}
 	}
-	
+
+
+	--tas attempt
+	frameInputs = {}
+	for l in io.lines("Input Log.txt") do
+		if l:sub(1,1) == "|" then
+			local it = {}
+			for i = 1,8 do
+				local ip = l:sub(1+i,1+i)
+				if ip ~= "." then
+					it[i] = true
+				else
+					it[i] = false
+				end
+			end
+			table.insert(frameInputs,it)
+		end
+	end
 end
 
 function loveupdate(dt)
@@ -159,7 +176,7 @@ function loveupdate(dt)
 	--4194304hz
 	if running then
 		targetCycles = 4194304*(dt/2)
-		if love.keyboard.isDown(".") then targetCycles = targetCycles * 5 end
+		if love.keyboard.isDown(".") then targetCycles = targetCycles * 4 end
 		startCycles = gbCPU.cycles
 		while gbCPU.cycles-startCycles < targetCycles do
 			gbCPU.executeInstruction()
@@ -167,17 +184,17 @@ function loveupdate(dt)
 	end
 
 	angle = angle + dt*3
-	
+
 	love.graphics.setCanvas(canvas)
 	love.graphics.clear({0,0.5,0.2})
 	local ofst = 30
 	local xo,yo = math.sin(angle)*ofst,math.cos(angle)*ofst
 	love.graphics.circle("fill",50+xo,50+yo,10)
 	love.graphics.setCanvas()
-	
+
 	love.window.setTitle(love.timer.getFPS().." FPS")
 	Slab.Update(dt)
-	
+
 	function drawTile(t,offx,offy)
 		for y = 1,8 do
 			for x = 1,8 do
@@ -216,12 +233,12 @@ function loveupdate(dt)
 			end
 		end
 		love.graphics.setCanvas()
-		
+
 		Slab.BeginWindow("lcd",{Title="LCD",Y = 195, DisableDocks = {"Left","Right","Bottom"}})--,AllowResize = true,AutoSizeWindow = false})
-			Slab.Image("img",{Image = lcdCanvas,Scale = 1})
+			Slab.Image("img",{Image = lcdCanvas,Scale = 2})
 		Slab.EndWindow()
 	end
-	
+
 	if canwin then --gpu canvas view https://gbdev.io/pandocs/Tile_Maps.html
 		Slab.BeginWindow("can",{Title="GPU canvas",Y = 195, DisableDocks = {"Left","Right","Bottom"}})--,AllowResize = true,AutoSizeWindow = false})
 			love.graphics.setCanvas(canvas1)
@@ -233,7 +250,7 @@ function loveupdate(dt)
 					--addressing mode from LCD control register
 					local n = ((y-1)*32)+(x-1)
 					--n = n + 128
-					
+
 					if gbCPU.gpu.bgmap then
 						n = n + 0x9C00
 					else
@@ -254,6 +271,8 @@ function loveupdate(dt)
 			end
 			love.graphics.setColor(1,0,0)
 			love.graphics.rectangle("line",00+gbCPU.gpu.scrollX,0+gbCPU.gpu.scrollY,160,144)
+			love.graphics.setColor(0,1,0)
+			love.graphics.rectangle("line",00+gbCPU.gpu.winX,0+gbCPU.gpu.winY,160,144)
 			--error()
 			love.graphics.setCanvas()
 			Slab.Image("img",{Image = canvas1,Scale = 1})
@@ -264,6 +283,7 @@ function loveupdate(dt)
 		Slab.BeginWindow("count",{Title="Frame count",X = 200,Y = 410})--,AllowResize = true,AutoSizeWindow = false})
 			Slab.Text("Count: "..count)
 			Slab.Text(gbCPU.gpu.frames)
+			Slab.Text(math.floor(gbCPU.gpu.fps+0.5))
 		Slab.EndWindow()
 		count = count + 1
 	end
@@ -307,6 +327,7 @@ function loveupdate(dt)
 				gbCPU.gpu.scrollY = Slab.GetInputNumber()
 			end
 			Slab.Text("GPU Line: "..tostring(gbCPU.gpu.line))
+			Slab.Text("LCDC "..string.format("0x%02x",gbCPU.gpu.lcdc))
 			Slab.Text("LCDC.3 "..tostring(gbCPU.gpu.bgmap))
 			Slab.Text("LCDC.4 "..tostring(gbCPU.gpu.bgtile))
 			Slab.Text("LCDC.5 "..tostring(gbCPU.gpu.winEnable))
@@ -355,11 +376,13 @@ function loveupdate(dt)
 			end
 			Slab.SameLine()
 			if Slab.Button("Next") then
+				local file = io.open("log.txt","w")
 				local f = love.timer.getTime()
 				--step until breakpoint
 				if breakPointList.num and breakPointList.num > 0 then
 					for _ = 1,3000000 do
 						--gbCPU.executeInstruction()
+						file:write(string.format("A: %02x F: %02x B: %02x C: %02x D: %02x E: %02x H: %02x L: %02x SP: %04x PC: 00:%04x \n",gbCPU.A,gbCPU.F,gbCPU.B,gbCPU.C,gbCPU.D,gbCPU.E,gbCPU.H,gbCPU.L,gbCPU.SP,gbCPU.PC))
 						if checking then stepCheck() else gbCPU.executeInstruction() end
 						if breakPointList[gbCPU.PC] == true then
 							break
@@ -388,15 +411,15 @@ function loveupdate(dt)
 				--ff:close()
 			end
 			--Slab.Image("game",{Image = canvas,Scale = 2})
-			
+
 		Slab.EndWindow()
 	end
 	--print(bit.bnot(5))
 	if dbgwin then
 		Slab.BeginWindow("debug",{Title="Dissassembly",X = 700})
-		
+
 			Slab.Text("Next Instruction:")
-			
+
 			local name = ""
 			local pr = print
 			print = function() end
@@ -414,7 +437,7 @@ function loveupdate(dt)
 			local clk = ""
 			if inst-1 == 0xcb then
 				inst2 = gbCPU.mem.getByte(gbCPU.PC+1)+1
-				name = jdataP[inst2].Name 
+				name = jdataP[inst2].Name
 				flgs = flg(jdataP[inst2].Flags)
 				hex = hex.."..0x"..string.format("%02x",inst2-1)
 				if jdataP[inst2].TCyclesNoBranch == jdataP[inst2].TCyclesBranch then
@@ -432,7 +455,7 @@ function loveupdate(dt)
 				end
 			end
 			--print = pr
-			
+
 			--find and grab immediate to help with readability
 			s = name:find(" ")
 			local sinst = ""
@@ -484,10 +507,9 @@ function loveupdate(dt)
 			Slab.Text(flgs)
 			Slab.Text("cycles: "..clk)
 			Slab.Text("inst: "..hex)
-			
 		Slab.EndWindow()
 	end
-	
+
 	if stackwin then
 		Slab.BeginWindow('stack', {Title = "Stack",X = 275})
 			local memoffs = gbCPU.SP+16
@@ -500,13 +522,13 @@ function loveupdate(dt)
 					Slab.Text(string.upper(string.format("0x%04x |",memoffs-(i-1)*2)),{Color = {1,1,1}})
 				end
 				Slab.SameLine()
-				local line = ""
+				--local line = ""
 				Slab.Text(string.upper(string.format("0x%02x%02x",gbCPU.mem.getByte((memoffs-(i-1)*2)+1),gbCPU.mem.getByte(memoffs-(i-1)*2))))
 			end
-			
+
 		Slab.EndWindow()
 	end
-	
+
 	if memwin then
 		Slab.BeginWindow('mem', {Title = "Memory",X = 275})
 			Slab.Text("Offset")
@@ -549,10 +571,10 @@ function loveupdate(dt)
 				end
 				Slab.Text(line)
 			end
-			
+
 		Slab.EndWindow()
 	end
-	
+
 	if cpuwin then
 		--[[
 		if gbCPU.instructionsExecuted > 0 then
@@ -614,8 +636,8 @@ function loveupdate(dt)
 			if Slab.Input("F",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.F)}) then
 				gbCPU.F = Slab.GetInputNumber()
 			end
-			
-			
+
+
 			--Slab.Text("Z ".. (bit.band(gbCPU.F,0x80)>0 and 1 or 0) .." N ".. (bit.band(gbCPU.F,0x40)>0 and 1 or 0) .." H ".. (bit.band(gbCPU.F,0x20)>0 and 1 or 0) .." C ".. (bit.band(gbCPU.F,0x10)>0 and 1 or 0) )
 			local z = (bit.band(gbCPU.F,0x80)>0 and true or false)
 			if Slab.CheckBox(z, "Z",{Tooltip = "Zero Flag"}) then
@@ -636,7 +658,7 @@ function loveupdate(dt)
 			if Slab.CheckBox(c, "C",{Tooltip = "Carry Flag"}) then
 				if not c then gbCPU.F = bor(gbCPU.F,0x10) else gbCPU.F = band(gbCPU.F,0xEF) end
 			end
-			
+
 			Slab.Text(string.format("SP 0x%04x",gbCPU.SP))
 			Slab.SameLine()
 			if Slab.Input("SP",{ReturnOnText = false,W = 50,Text = tostring(gbCPU.SP)}) then
@@ -654,10 +676,10 @@ function loveupdate(dt)
 			if Slab.CheckBox(gbCPU.HALT, "HALT",{Tooltip = "CPU HALT"}) then
 				gbCPU.HALT = not gbCPU.HALT
 			end
-			local hz = 4.194304*1000000
+			local hz = (4.194304*1000000)/2
 			Slab.Text("Cpu cycles "..gbCPU.cycles)
 			Slab.Text("("..string.format("%.4f",gbCPU.cycles/hz)..")seconds")
-			
+
 			Slab.Text("Run inst")
 			Slab.SameLine()
 			if Slab.Button("Run",{W = 40,H = 12}) then
@@ -666,28 +688,28 @@ function loveupdate(dt)
 			if Slab.Input("Inst",{ReturnOnText = false, Text=instToBeRun}) then
 				instToBeRun = Slab.GetInputNumber()
 			end
-			
-			
+
+
 			if Slab.Button("Step",{W = 40,H = 18}) then
 				gbCPU.executeInstruction(true)
 			end
-			
+
 			Slab.SameLine()
 			if Slab.Button("+100",{W = 40,H = 18}) then
-				for i = 1,100 do
+				for _ = 1,100 do
 					gbCPU.executeInstruction()
 				end
 				print(100)
 			end
 			Slab.SameLine()
 			if Slab.Button("+1000",{W = 40,H = 18}) then
-				for i = 1,1000 do
+				for _ = 1,1000 do
 					gbCPU.executeInstruction()
 				end
 				print(1000)
 			end
 			if Slab.Button("Custom",{W = 60,H = 18}) then
-				for i = 1,cstep do                                                          
+				for _ = 1,cstep do
 					gbCPU.executeInstruction()
 				end
 				print("stepped "..cstep.." times")
@@ -702,10 +724,10 @@ function loveupdate(dt)
 			end
 		Slab.EndWindow()
 	end
-	
+
 	if Slab.BeginMainMenuBar() then
 		if Slab.BeginMenu("File") then
-			
+
 
 			if Slab.MenuItem("Quit") then
 				love.event.quit()
@@ -749,15 +771,49 @@ function loveupdate(dt)
 			end
 			Slab.EndMenu()
 		end
+		if Slab.BeginMenu("Shortcuts") then
+
+
+			if Slab.MenuItem("JustLCD") then
+				cpuwin = false
+				memwin = false
+				stackwin = false
+				dbgwin = false
+				brkwin = false
+				gpuwin = false
+				timerwin = false
+				tilewin = false
+				canwin = false
+				lcdwin = true
+				countwin = false
+			end
+
+			Slab.EndMenu()
+		end
 
 		Slab.EndMainMenuBar()
 	end
 	if bigboy then
-		for i = 1,100 do
+		for _ = 1,100 do
 			gbCPU.executeInstruction()
 			printLinkPort()
 		end
 	end
+
+	--[[
+	if frameInputs[gbCPU.gpu.frames+1] then
+		local inp = frameInputs[gbCPU.gpu.frames+1]
+		if inp[1] then gbCPU.joy.buttons.Up = 0 ; print("up") else gbCPU.joy.buttons.Up = 1 end
+		if inp[2] then gbCPU.joy.buttons.Down = 0 else gbCPU.joy.buttons.Down = 1 end
+		if inp[3] then gbCPU.joy.buttons.Left = 0 else gbCPU.joy.buttons.Left = 1 end
+		if inp[4] then gbCPU.joy.buttons.Right = 0 else gbCPU.joy.buttons.Right = 1 end
+		if inp[5] then gbCPU.joy.buttons.Start = 0 ; print("start") else gbCPU.joy.buttons.Start = 1 end
+		if inp[6] then gbCPU.joy.buttons.Select = 0 else gbCPU.joy.buttons.Select = 1 end
+		if inp[7] then gbCPU.joy.buttons.B = 0 else gbCPU.joy.buttons.B = 1 end
+		if inp[8] then gbCPU.joy.buttons.A = 0 else gbCPU.joy.buttons.A = 1 end
+	end
+	]]--
+	
 	if love.keyboard.isDown("up") then gbCPU.joy.buttons.Up = 0 else gbCPU.joy.buttons.Up = 1 end
 	if love.keyboard.isDown("down") then gbCPU.joy.buttons.Down = 0 else gbCPU.joy.buttons.Down = 1 end
 	if love.keyboard.isDown("left") then gbCPU.joy.buttons.Left = 0 else gbCPU.joy.buttons.Left = 1 end
@@ -766,6 +822,16 @@ function loveupdate(dt)
 	if love.keyboard.isDown("pagedown") then gbCPU.joy.buttons.Select = 0 else gbCPU.joy.buttons.Select = 1 end
 	if love.keyboard.isDown("a") then gbCPU.joy.buttons.A = 0 else gbCPU.joy.buttons.A = 1 end
 	if love.keyboard.isDown("b") then gbCPU.joy.buttons.B = 0 else gbCPU.joy.buttons.B = 1 end
+	--[[
+	if love.keyboard.isDown("space") then gbCPU.joy.buttons.Up = 0 else gbCPU.joy.buttons.Up = 1 end
+	if love.keyboard.isDown("down") then gbCPU.joy.buttons.Down = 0 else gbCPU.joy.buttons.Down = 1 end
+	if love.keyboard.isDown("left") then gbCPU.joy.buttons.Left = 0 else gbCPU.joy.buttons.Left = 1 end
+	if love.keyboard.isDown("right") then gbCPU.joy.buttons.Right = 0 else gbCPU.joy.buttons.Right = 1 end
+	if love.keyboard.isDown("return") then gbCPU.joy.buttons.Start = 0 else gbCPU.joy.buttons.Start = 1 end
+	if love.keyboard.isDown("c") then gbCPU.joy.buttons.Select = 0 else gbCPU.joy.buttons.Select = 1 end
+	if love.keyboard.isDown("up") then gbCPU.joy.buttons.A = 0 else gbCPU.joy.buttons.A = 1 end
+	if love.keyboard.isDown("b") then gbCPU.joy.buttons.B = 0 else gbCPU.joy.buttons.B = 1 end
+	]]--
 end
 
 function lovedraw()
@@ -832,7 +898,7 @@ bigboy = false
 checking = false
 function love.keypressed(k)
 	--print(k)
-	if k == "space" then
+	if k == "backspace" then
 		--bigboy = not bigboy
 		--checking = not checking
 		running = not running
@@ -861,7 +927,7 @@ function love.keypressed(k)
 	if k == "return" then
 		if checking then stepCheck() end
 	end
-	return--[[
+	--[[
 	if k == "space" then
 		--print("executing instruction")
 		if love.keyboard.isDown("lshift") then

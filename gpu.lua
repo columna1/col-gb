@@ -16,7 +16,10 @@ local function gpu()
 	function self.reset()
 		self.scrollX = 0
 		self.scrollY = 0
+		self.winX = 0
+		self.winY = 0
 		self.bgtilemap = {}
+		self.lcdc = 0
 		
 		self.bgtile = 0
 		
@@ -68,6 +71,9 @@ local function gpu()
 		self.winEnable = false
 		self.switchlcd = false
 		self.frames = 0
+
+		self.fps = 0
+		self.lastTime = love.timer.getTime()
 	end
 	
 	function self.updateLine(dt)
@@ -92,6 +98,9 @@ local function gpu()
 					self.lineMode = 2
 					--self.mmu.setByte(bit.band(self.mmu.getByte(0xFF0F),0xFE),0xFF0F)
 					self.frames = self.frames + 1
+					local ft = love.timer.getTime()
+					self.fps = (self.fps+(1/(ft-self.lastTime)))/2
+					self.lastTime = ft
 					--print("frame",self.frames)
 				end
 			end
@@ -170,15 +179,52 @@ local function gpu()
 				self.scrdata[xx][self.line] = 1
 			end
 			
-			for i = 1,40 do
-				if self.oam[i][1] > line+8 and self.oam[i][1] <= line+16 then--y pos
-					if self.oam[i][2] > x and self.oam[i][2] <= x+8 then--x pos
+			if self.line >= self.winY and xx+7 >= self.winX and self.wenEnable then
+				local wx = self.winX-xx+7
+				local wy = self.line-self.winY
+				local tilex = math.floor(x/8)
+				local tiley = math.floor(y/8)
+				local n = (tiley*32)+tilex
+				
+				
+				
+				if self.winmap then
+					n = n + 0x9C00
+				else
+					n = n + 0x9800
+				end
+				
+				if not self.bgtile then
+					tilenum = self.vram[bit.band(n,0x1FFF)]
+					if bit.band(tilenum,0x80) > 0 then
+						tilenum = -(bit.band(bit.bnot(tilenum),0xFF)+1)
+					end
+					tilenum = 256+tilenum
+				else
+					tilenum = self.vram[bit.band(n,0x1FFF)]
+				end
+				local tile = self.tileSet[tilenum]
+				
+				if tile then 
+					--self.scrdata[xx][self.line] = tile[y%8][x%8] 
+					self.scrdata[xx][self.line] = self.palette[tile[y%8][x%8]] 
+				else 
+					self.scrdata[xx][self.line] = 3
+				end
+				
+			end
+			
+			local cp = self.scrdata[xx][self.line]
+			
+			for i = 40,1,-1 do--todo don't scan all 40 objects per pixel
+				if self.oam[i][1] > self.line+8 and self.oam[i][1] <= self.line+16 then--y pos
+					if self.oam[i][2] > xx and self.oam[i][2] <= xx+8 then--x pos
 						--printTable(self.oam[i])
 						local ll = self.oam[i][1]-16
 						local xxx = self.oam[i][2]-8
 						--print(line-ll)
-						ll = line-ll
-						xxx = x-xxx
+						ll = self.line-ll
+						xxx = xx-xxx
 						if bit.band(self.oam[i][4],0x20) > 0 then
 							xxx = 7-xxx
 						end
@@ -191,7 +237,9 @@ local function gpu()
 							--printTable(self.oam[i])
 							--print(line,x,ll,xxx)
 							--print(p)
-							if (not (bit.band(self.oam[i][4],0x80) > 0)) or ((bit.band(self.oam[i][4],0x80) > 0) and self.scrdata[xx][self.line] == 1) then
+							if (not (bit.band(self.oam[i][4],0x80) > 0)) or ((bit.band(self.oam[i][4],0x80) > 0) 
+							and cp == 1) then
+							--if self.scrdata[xx][self.line] == 1 then
 								if bit.band(self.oam[i][4],0x10) > 0 then
 									self.scrdata[xx][self.line] = self.obp1[p]
 								else

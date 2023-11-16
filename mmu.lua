@@ -4,11 +4,14 @@ local function mmu(file)
 	local bios = {}
 	local serialstr = ""
 	function self.reset()
+		--print("mmu reset")
+		--error()
 		self.workingRam = {}--C000-DFFF/E000-FDFF
 		self.zeroPage = {}--FF80-FFFF
 		self.romBank0 = {}--0000-3FFF
 		self.romBank1 = {}--4000-7FFF
 		self.mbcType = 0
+		self.memBank = 0
 		self.ipend = false
 		
 		for i = 0xC000,0xDFFF do
@@ -47,8 +50,10 @@ local function mmu(file)
 			--if i-1 == 0x4244 then print(string.byte(str:sub(i,i))) end
 			self.rom[i-1] = string.byte(str:sub(i,i))
 		end
-		
-		
+		print(string.format("%02x",self.rom[0x0147]))
+		self.mbcType = self.rom[0x0147] == 0x13 and 3 or 0 
+		print(self.mbcType)
+		--[[
 		for i = 0x0000,0x3FFF do
 			self.romBank0[i] = self.rom[i]
 		end
@@ -56,7 +61,7 @@ local function mmu(file)
 			for i = 0x4000,0x7FFF do
 				self.romBank1[i] = self.rom[i]
 			end
-		end
+		end]]--
 		self.inBootRom = 0
 		self.intFlags = 0
 	end
@@ -74,16 +79,25 @@ local function mmu(file)
 			if self.inBootRom == 0 then
 				return bios[addr]
 			else
-				return self.romBank0[addr]
+				----return self.romBank0[addr]
+				return self.rom[addr]
 			end
 		elseif addr >= 0x0000 and addr <= 0x3FFF then
 			--print("get byte ",addr,rom[addr-0x100])
 			--print("from rom")
-			pr(self.romBank0[addr])
-			return self.romBank0[addr]
+			--pr(self.romBank0[addr])
+			----return self.romBank0[addr]
+			return self.rom[addr]
 		elseif addr >= 0x4000 and addr <= 0x7FFF then
 			if self.mbcType == 0 then 
-				return self.romBank1[addr]
+				----return self.romBank1[addr]
+				return self.rom[addr]
+			elseif self.mbcType == 3 then
+				local adr = addr
+				local mb = self.memBank
+				if self.memBank == 0 then mb = 1 end
+				adr = addr + (0x4000*(mb-1))
+				return self.rom[adr]
 			end
 		elseif addr >=0x8000 and addr <= 0x9FFF then--gpu memory
 			return self.gpu.vram[bit.band(addr,0x1FFF)]
@@ -126,7 +140,14 @@ local function mmu(file)
 	end
 	function self.setByte(byte,addr)
 		--print(string.format("set byte addr: 0x%x(%d) value: 0x%x(%d)",addr,addr,byte,byte))
-		if addr >= 0xC000 and addr <= 0xDFFF then
+		if addr >= 0x0000 and addr <= 0x1FFF then--ram enable/disable
+			print("rams")
+			print(addr,byte)
+		elseif addr >= 0x2000 and addr <= 0x3FFF then
+			print("rom bank num")
+			print(addr,byte)
+			self.memBank = bit.band(0x1F,byte)
+		elseif addr >= 0xC000 and addr <= 0xDFFF then
 			--print("to ram")
 			if addr == 0xDD02 then
 				--error (self.cpu.PC)
@@ -163,7 +184,9 @@ local function mmu(file)
 				self.gpu.bgmap     = bit.band(byte,bit.lshift(1,3)) > 0
 				self.gpu.bgtile    = bit.band(byte,bit.lshift(1,4)) > 0
 				self.gpu.winEnable = bit.band(byte,bit.lshift(1,5)) > 0
+				self.gpu.winMap    = bit.band(byte,bit.lshift(1,6)) > 0
 				self.gpu.switchlcd = bit.band(byte,bit.lshift(1,7)) > 0
+				self.gpu.lcdc = byte
 			elseif addr == 0xFF42 then
 				self.gpu.scrollY = byte
 			elseif addr == 0xFF43 then
@@ -189,7 +212,7 @@ local function mmu(file)
 					end
 				end
 			elseif addr == 0xFF48 then--ob0 pallete
-				print("palette 0",byte)
+				--print("palette 0",byte)
 				for i = 0,3 do
 					local v = bit.band(bit.rshift(byte,i*2),3)
 					if v == 0 then
@@ -202,9 +225,9 @@ local function mmu(file)
 						self.gpu.obp0[i] = 4--black
 					end
 				end
-				printTable(self.gpu.obp0)
+				--printTable(self.gpu.obp0)
 			elseif addr == 0xFF49 then--ob1 pallete
-				print("palette 1",byte)
+				--print("palette 1",byte)
 				for i = 0,3 do
 					local v = bit.band(bit.rshift(byte,i*2),3)
 					if v == 0 then
@@ -218,8 +241,13 @@ local function mmu(file)
 					end
 				end
 				--printTable(self.gpu.palette)
+			elseif addr == 0xFF4A then--WY window y pos
+				self.gpu.winY = byte
+			elseif addr == 0xFF4B then--WX window x pos
+				self.gpu.winX = byte
 			elseif addr == 0xFF50 then--boot rom disable/enable
 				self.inBootRom = byte
+				self.gpu.frames = -10
 			end
 		elseif addr >= 0xFF80 and addr <= 0xFFFE then
 			--print("to zero page")
