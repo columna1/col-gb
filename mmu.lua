@@ -123,6 +123,8 @@ local function mmu(file)
 				val = val + (self.gpu.bgtile and 16 or 0)
 				val = val + (self.gpu.switchlcd and 128 or 0)
 				return val
+			elseif addr == 0xFF41 then
+				return bit.bor(self.gpu.STAT,bit.band(self.gpu.lineMode,0x3))
 			elseif addr == 0xFF42 then
 				return self.gpu.scrollY
 			elseif addr == 0xFF43 then
@@ -130,6 +132,8 @@ local function mmu(file)
 			elseif addr == 0xFF44 then
 				--return 0x90
 				return self.gpu.line
+			elseif addr == 0xFF45 then
+				return self.gpu.LYC
 			end
 		elseif addr >= 0xFF80 and addr <= 0xFFFF then
 			--print("from zero page")
@@ -138,10 +142,14 @@ local function mmu(file)
 		end
 		return 0
 	end
+
+
+
+
 	function self.setByte(byte,addr)
 		--print(string.format("set byte addr: 0x%x(%d) value: 0x%x(%d)",addr,addr,byte,byte))
 		if addr >= 0x0000 and addr <= 0x1FFF then--ram enable/disable
-			print("rams")
+			print("ram enable")
 			print(addr,byte)
 		elseif addr >= 0x2000 and addr <= 0x3FFF then
 			print("rom bank num")
@@ -187,10 +195,14 @@ local function mmu(file)
 				self.gpu.winMap    = bit.band(byte,bit.lshift(1,6)) > 0
 				self.gpu.switchlcd = bit.band(byte,bit.lshift(1,7)) > 0
 				self.gpu.lcdc = byte
+			elseif addr == 0xFF41 then--LCD STAT register
+				self.gpu.STAT = bit.bor(bit.band(byte,0xF8),self.gpu.STAT)--bits 0-2 are read only
 			elseif addr == 0xFF42 then
 				self.gpu.scrollY = byte
 			elseif addr == 0xFF43 then
 				self.gpu.scrollX = byte
+			elseif addr == 0xFF45 then--LYC: LY compare
+				self.gpu.LYC = byte
 			elseif addr == 0xFF46 then--OAM DMA write https://gbdev.io/pandocs/OAM_DMA_Transfer.html#oam-dma-transfer
 				--todo DMA bus conflicts: cpu can only read from HRAM
 				for i = 0,159 do
@@ -247,7 +259,8 @@ local function mmu(file)
 				self.gpu.winX = byte
 			elseif addr == 0xFF50 then--boot rom disable/enable
 				self.inBootRom = byte
-				self.gpu.frames = -10
+				--self.cpu.IME = 0
+				--self.gpu.frames = -10
 			end
 		elseif addr >= 0xFF80 and addr <= 0xFFFE then
 			--print("to zero page")

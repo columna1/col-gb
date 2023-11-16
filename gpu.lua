@@ -20,6 +20,8 @@ local function gpu()
 		self.winY = 0
 		self.bgtilemap = {}
 		self.lcdc = 0
+		self.STAT = 0
+		self.LYC = 0
 		
 		self.bgtile = 0
 		
@@ -79,20 +81,41 @@ local function gpu()
 	function self.updateLine(dt)
 		self.lineClock = self.lineClock + dt
 		if self.lineMode == 0 then--hblank
+			if self.line == self.LYC then
+				local statByte = self.mmu.getByte(0xFF41)
+				if bit.band(statByte,0x04) == 0 then --don't run if bit is on: STAT blocking
+					self.mmu.setByte(bit.bor(self.mmu.getByte(0xFF0F),2),0xFF0F)--STAT int
+					self.mmu.setByte(bit.bor(statByte,0x04),0xFF41)--LYC==LY int select
+				end
+			end
 			if self.lineClock >= 204 then
 				self.renderScanLine()
 				self.lineClock = self.lineClock - 204
 				self.line = self.line + 1
 				if self.line >= 144 then
 					--print("set gpu interupt")
-					self.mmu.setByte(bit.bor(self.mmu.getByte(0xFF0F),1),0xFF0F)
+					self.mmu.setByte(bit.bor(self.mmu.getByte(0xFF0F),1),0xFF0F)--vblank int
 					self.lineMode = 1
+					
+					local statByte = self.mmu.getByte(0xFF41)
+					if bit.band(statByte,0x10) == 0 then --don't run if bit is on: STAT blocking
+						self.mmu.setByte(bit.bor(self.mmu.getByte(0xFF0F),2),0xFF0F)--STAT int
+						self.mmu.setByte(bit.bor(statByte,0x10),0xFF41)--mode 1 int select
+					end
 				end
 			end
 		elseif self.lineMode == 1 then--vblank
+			if self.line == self.LYC then
+				local statByte = self.mmu.getByte(0xFF41)
+				if bit.band(statByte,0x04) == 0 then --don't run if bit is on: STAT blocking
+					self.mmu.setByte(bit.bor(self.mmu.getByte(0xFF0F),2),0xFF0F)--STAT int
+					self.mmu.setByte(bit.bor(statByte,0x04),0xFF41)--LYC==LY int select
+				end
+			end
 			if self.lineClock >= 456 then
 				self.lineClock = self.lineClock - 456
 				self.line = self.line + 1
+				
 				if self.line >= 154 then
 					self.line = 0
 					self.lineMode = 2
@@ -102,6 +125,11 @@ local function gpu()
 					self.fps = (self.fps+(1/(ft-self.lastTime)))/2
 					self.lastTime = ft
 					--print("frame",self.frames)
+					local statByte = self.mmu.getByte(0xFF41)
+					if bit.band(statByte,0x20) == 0 then --don't run if bit is on: STAT blocking
+						self.mmu.setByte(bit.bor(self.mmu.getByte(0xFF0F),2),0xFF0F)--STAT int
+						self.mmu.setByte(bit.bor(statByte,0x20),0xFF41)--mode 2 int select
+					end
 				end
 			end
 		elseif self.lineMode == 2 then--OAM scan
@@ -113,6 +141,12 @@ local function gpu()
 			if self.lineClock >= 172 then
 				self.lineClock = self.lineClock - 172
 				self.lineMode = 0
+				
+				local statByte = self.mmu.getByte(0xFF41)
+				if bit.band(statByte,0x08) == 0 then --don't run if bit is on: STAT blocking
+					self.mmu.setByte(bit.bor(self.mmu.getByte(0xFF0F),2),0xFF0F)--STAT int
+					self.mmu.setByte(bit.bor(statByte,0x08),0xFF41)--mode 0 int select
+				end
 			end
 		end
 	end
@@ -254,7 +288,7 @@ local function gpu()
 		end
 	end
 	
-	function self.step(dt)
+	function self.step(dt)--is this even used?
 		if self.mode == 2 then
 			--OAM read, scanline is active
 			if self.clock >= 80 then
