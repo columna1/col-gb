@@ -118,6 +118,8 @@ function loveload(args)
 	canwin = true
 	lcdwin = true
 	countwin = true
+	palettewin = true
+	
 	memoff = 0
 	follow = false
 	cstep = 1337
@@ -141,6 +143,13 @@ function loveload(args)
 	Slab.DisableDocks{"Left","Right","Bottom"}
 	count = 0
 
+
+	palcanv = love.graphics.newCanvas(4,3)
+	palcanv:setFilter("linear","nearest")
+	love.graphics.setCanvas(palcanv)
+	love.graphics.clear({1,1,1})
+	love.graphics.setCanvas()
+	
 	epicLog = io.open("Blargg2.txt","r")
 
 	instToBeRun = ""
@@ -174,6 +183,7 @@ end
 function loveupdate(dt)
 
 	--4194304hz
+	--print(dt)
 	if running then
 		targetCycles = 4194304*(dt/2)
 		if love.keyboard.isDown(".") then targetCycles = targetCycles * 4 end
@@ -279,6 +289,27 @@ function loveupdate(dt)
 		Slab.EndWindow()
 	end 
 	
+	if palettewin then
+		love.graphics.setCanvas(palcanv)
+		---love.graphics.clear({1,1,1})
+		for i = 0,3 do
+			love.graphics.setColor(colorPalette[gbCPU.gpu.palette[i]])
+			love.graphics.points(i+1,1)
+		end
+		for i = 0,3 do
+			love.graphics.setColor(colorPalette[gbCPU.gpu.obp0[i]])
+			love.graphics.points(i+1,2)
+		end
+		for i = 0,3 do
+			love.graphics.setColor(colorPalette[gbCPU.gpu.obp1[i]])
+			love.graphics.points(i+1,3)
+		end
+		love.graphics.setCanvas()
+		Slab.BeginWindow("palette",{Title="Palette view",X = 700,Y = 610})--,AllowResize = true,AutoSizeWindow = false})
+			Slab.Image("img",{Image = palcanv,ScaleX = 30,ScaleY=30})
+		Slab.EndWindow()
+	end
+	
 	if countwin then
 		Slab.BeginWindow("count",{Title="Frame count",X = 200,Y = 410})--,AllowResize = true,AutoSizeWindow = false})
 			Slab.Text("Count: "..count)
@@ -328,6 +359,7 @@ function loveupdate(dt)
 			end
 			Slab.Text("GPU Line: "..tostring(gbCPU.gpu.line))
 			Slab.Text("LCDC "..string.format("0x%02x",gbCPU.gpu.lcdc))
+			Slab.Text("LCDC.2 "..tostring(gbCPU.gpu.objSize))
 			Slab.Text("LCDC.3 "..tostring(gbCPU.gpu.bgmap))
 			Slab.Text("LCDC.4 "..tostring(gbCPU.gpu.bgtile))
 			Slab.Text("LCDC.5 "..tostring(gbCPU.gpu.winEnable))
@@ -898,7 +930,10 @@ bigboy = false
 checking = false
 function love.keypressed(k)
 	--print(k)
-	if k == "backspace" then
+	--if k == "b" then
+	--	gbCPU.mem.setByte(0x85,0xFF40)
+	--end
+	if k == "`" then
 		--bigboy = not bigboy
 		--checking = not checking
 		running = not running

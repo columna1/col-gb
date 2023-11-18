@@ -42,8 +42,11 @@ local function gpu()
 		end
 		
 		self.palette = {4,3,2,1}
-		self.obp0 = {4,3,2}
-		self.obp1 = {1,2,3}
+		self.obp0 = {4,3,2,4}
+		self.obp1 = {1,2,3,4}
+		self.palette[0] = 1
+		self.obp0[0] = 1
+		self.obp1[0] = 1
 		
 		self.vram = {}
 		for i = 0,0x2000 do
@@ -67,6 +70,8 @@ local function gpu()
 		self.lineMode = 2
 		self.lineClock = 0 
 		
+		self.objEnable = 0
+		self.objSize = 0
 		self.bgmap = false
 		self.switchbg = false
 		self.bgtile = false
@@ -185,6 +190,18 @@ local function gpu()
 		line = bit.band(line,0xFF)--limit value and perform screen roll
 		local xoff = self.scrollX
 		local y = line
+		
+		local lineObjects = {}
+		
+		for o = 40,1,-1 do
+			local height = 8
+			if self.objSize then height = 0 end
+			if self.oam[o][1] > self.line+height and self.oam[o][1] <= self.line+16 then--y pos
+				table.insert(lineObjects,self.oam[o])
+				if #lineObjects > 9 then break end--todo account for priority
+			end
+		end
+		
 		for xx = 0,160 do
 			local x = xx+xoff
 			x = bit.band(x,0xFF)
@@ -198,10 +215,12 @@ local function gpu()
 			end
 			if not self.bgtile then
 				tilenum = self.vram[bit.band(n,0x1FFF)]
-				if bit.band(tilenum,0x80) > 0 then
-					tilenum = -(bit.band(bit.bnot(tilenum),0xFF)+1)
-				end
-				tilenum = 256+tilenum
+				--if bit.band(tilenum,0x80) > 0 then
+				--	tilenum = -(bit.band(bit.bnot(tilenum),0xFF)+1)
+				--end
+				tilenum = (tilenum+128)%256
+				
+				tilenum = 128+tilenum
 			else
 				tilenum = self.vram[bit.band(n,0x1FFF)]
 			end
@@ -250,35 +269,42 @@ local function gpu()
 			
 			local cp = self.scrdata[xx][self.line]
 			
-			for i = 40,1,-1 do--todo don't scan all 40 objects per pixel
-				if self.oam[i][1] > self.line+8 and self.oam[i][1] <= self.line+16 then--y pos
-					if self.oam[i][2] > xx and self.oam[i][2] <= xx+8 then--x pos
-						--printTable(self.oam[i])
-						local ll = self.oam[i][1]-16
-						local xxx = self.oam[i][2]-8
-						--print(line-ll)
-						ll = self.line-ll
-						xxx = xx-xxx
-						if bit.band(self.oam[i][4],0x20) > 0 then
-							xxx = 7-xxx
+			for i = 1,#lineObjects do
+				if lineObjects[i][2] > xx and lineObjects[i][2] <= xx+8 then--x pos
+					--printTable(self.oam[i])
+					local ll = lineObjects[i][1]-16
+					local xxx = lineObjects[i][2]-8
+					--print(line-ll)
+					ll = self.line-ll
+					xxx = xx-xxx
+					if bit.band(lineObjects[i][4],0x20) > 0 then
+						xxx = 7-xxx
+					end
+					if bit.band(lineObjects[i][4],0x40) > 0 then
+						ll = 7-ll
+					end
+					--print(line,x,ll,xxx)
+					local t = {}
+					if self.objSize then
+						if ll >= 8 then
+							t = self.tileSet[bit.band(lineObjects[i][3],0xFE)+1]
+						else
+							t = self.tileSet[bit.band(lineObjects[i][3],0xFE)]
 						end
-						--print(line,x,ll,xxx)
-						
-						local t = self.tileSet[self.oam[i][3]]
-						local p = t[ll][xxx]
-						--print(p)
-						if p ~= 0 then
-							--printTable(self.oam[i])
-							--print(line,x,ll,xxx)
-							--print(p)
-							if (not (bit.band(self.oam[i][4],0x80) > 0)) or ((bit.band(self.oam[i][4],0x80) > 0) 
-							and cp == 1) then
-							--if self.scrdata[xx][self.line] == 1 then
-								if bit.band(self.oam[i][4],0x10) > 0 then
-									self.scrdata[xx][self.line] = self.obp1[p]
-								else
-									self.scrdata[xx][self.line] = self.obp0[p]
-								end
+					else
+						t = self.tileSet[lineObjects[i][3]]
+					end
+					--if not t[ll] then print(ll,ll%8,t) end
+					local p = t[ll%8][xxx]
+					if p ~= 0 then
+						--priorty bit
+						if (not (bit.band(lineObjects[i][4],0x80) > 0)) or ((bit.band(lineObjects[i][4],0x80) > 0) 
+						and cp == 1) then
+							--object palette 
+							if bit.band(lineObjects[i][4],0x10) > 0 then
+								self.scrdata[xx][self.line] = self.obp1[p]
+							else
+								self.scrdata[xx][self.line] = self.obp0[p]
 							end
 						end
 					end

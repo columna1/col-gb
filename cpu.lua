@@ -36,8 +36,14 @@ local function CPU()
 	--printTable(jdata.Unprefixed)
 	
 	local self = {}
-	local mem = mmu("Tetris.gb")
+	--local mem = mmu("tobu.gb")
+	--local mem = mmu("Tetris.gb")
+	--local mem = mmu("Chessmaster.gb")
+	--local mem = mmu("Tetris (patched).gb")
+	--local mem = mmu("Tetris (patched) (patched).gb")
+	--local mem = mmu("2048-gb/2048.gb")
 	--local mem = mmu("Dr. Mario (World).gb")
+	--local mem = mmu("Super Mario Land (World).gb")
 	--local mem = mmu("Asteroids (USA, Europe).gb")
 	--local mem = mmu("Pokemon - Blue Version (USA, Europe) (SGB Enhanced).gb")
 	--local mem = mmu("Space Invaders (Japan).gb")
@@ -53,8 +59,8 @@ local function CPU()
 	--local mem = mmu("blarg-cpu-inst/individual/09-op r,r.gb")
 	--local mem = mmu("blarg-cpu-inst/individual/10-bit ops.gb")
 	--local mem = mmu("blarg-cpu-inst/individual/11-op a,(hl).gb")
-	--local mem = mmu("blarg-cpu-inst/cpu_instrs.gb")
-	--local mem = mmu("blarg-cpu-inst/instr_timing.gb")
+	local mem = mmu("blarg-cpu-inst/cpu_instrs.gb")
+	--local mem = mmu("gb-test-roms/instr_timing/instr_timing.gb")
 	--local mem = mmu("blarg-cpu-inst/interrupt_time.gb")
 	--local mem = mmu("mts/acceptance/timer/rapid_toggle.gb")
 	--local mem = mmu("mts/acceptance/timer/div_write.gb")
@@ -106,6 +112,8 @@ local function CPU()
 		self.mem.reset()
 		self.gpu.reset()
 		self.timer.reset()
+		
+		self.outOfBoot = false
 		cycles = 0
 	end
 	self.instsran = {}
@@ -169,8 +177,7 @@ local function CPU()
 					self.SP = self.SP-2  ;
 					self.mem.setByte(bit.band(self.PC,0xFF),self.SP) ; 
 					self.mem.setByte(bit.band(bit.rshift(self.PC,8),0xFF),self.SP+1) ; 
-					self.PC = 0x48; 
-					cycles = cycles + 16 --[199 0xc7]
+					self.PC = 0x48; cycles = cycles + 16 --[199 0xc7]
 					if self.mem.getByte(0xFF0F) == 0 then self.mem.ipend = false end
 					cycles = cycles + 4
 					self.HALT = false
@@ -188,7 +195,7 @@ local function CPU()
 					self.SP = self.SP-2  ; self.mem.setByte(bit.band(self.PC,0xFF),self.SP) ; self.mem.setByte(bit.band(bit.rshift(self.PC,8),0xFF),self.SP+1) ; self.PC = 0x58; cycles = cycles + 16 --[199 0xc7]
 					if self.mem.getByte(0xFF0F) == 0 then self.mem.ipend = false end
 					cycles = cycles + 4
-					print("handling joypad interupt")
+					--print("handling serial interupt")
 					self.HALT = false
 				elseif bit.band(bit.band(self.mem.getByte(0xFFFF),16),bit.band(self.mem.getByte(0xFF0F,16))) > 0 then--Joypad
 					self.mem.setByte(bit.band(self.mem.getByte(0xFF0F),0xEF),0xFF0F)
@@ -201,6 +208,13 @@ local function CPU()
 			end
 		end
 		--print = pr
+		if not self.outOfBoot then
+			if self.PC == 0x100 then
+				self.outOfBoot = true
+				self.IME = false
+			end
+		end
+		
 		local cyclesDT = cycles-self.cycles
 		self.cycles = cycles
 		self.instructionsExecuted = self.instructionsExecuted + 1

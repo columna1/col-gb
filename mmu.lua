@@ -51,8 +51,12 @@ local function mmu(file)
 			self.rom[i-1] = string.byte(str:sub(i,i))
 		end
 		print(string.format("%02x",self.rom[0x0147]))
-		self.mbcType = self.rom[0x0147] == 0x13 and 3 or 0 
-		print(self.mbcType)
+		--self.mbcType = self.rom[0x0147] == 0x13 and 3 or 0
+		local mbt = self.rom[0x0147]
+		if mbt >= 0x0F and mbt <= 0x13 then self.mbcType = 3
+		elseif mbt >=0x01 and mbt <= 0x03 then self.mbcType = 3--1 temp only have "support" for mbc3 atm
+		end
+		print("MBC ID: "..self.mbcType)
 		--[[
 		for i = 0x0000,0x3FFF do
 			self.romBank0[i] = self.rom[i]
@@ -149,11 +153,11 @@ local function mmu(file)
 	function self.setByte(byte,addr)
 		--print(string.format("set byte addr: 0x%x(%d) value: 0x%x(%d)",addr,addr,byte,byte))
 		if addr >= 0x0000 and addr <= 0x1FFF then--ram enable/disable
-			print("ram enable")
-			print(addr,byte)
+			--print("ram enable")
+			--print(addr,byte)
 		elseif addr >= 0x2000 and addr <= 0x3FFF then
-			print("rom bank num")
-			print(addr,byte)
+			--print("rom bank num")
+			--print(addr,byte)
 			self.memBank = bit.band(0x1F,byte)
 		elseif addr >= 0xC000 and addr <= 0xDFFF then
 			--print("to ram")
@@ -189,6 +193,8 @@ local function mmu(file)
 				end
 			elseif addr == 0xFF40 then--LCD
 				self.gpu.switchbg  = bit.band(byte,bit.lshift(1,0)) > 0
+				self.gpu.objEnable = bit.band(byte,bit.lshift(1,1)) > 0
+				self.gpu.objSize   = bit.band(byte,bit.lshift(1,2)) > 0
 				self.gpu.bgmap     = bit.band(byte,bit.lshift(1,3)) > 0
 				self.gpu.bgtile    = bit.band(byte,bit.lshift(1,4)) > 0
 				self.gpu.winEnable = bit.band(byte,bit.lshift(1,5)) > 0
