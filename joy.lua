@@ -21,8 +21,7 @@ local function joy()
 		--print(self.bank)
 	end
 	
-	function self.rb()
-		if self.bank == 0x20 then
+	function self.rb()if self.bank == 0x20 then
 			local b =  bit.bor(self.bank,0xC0)--match bgb
 			b = b +            self.buttons.Right
 			b = b + bit.lshift(self.buttons.Left,1)

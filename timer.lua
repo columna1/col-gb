@@ -75,6 +75,7 @@ local function timer()
 	end
 	
 	function self.rb(b)
+		--print("read",b)
 		if b == 0xFF04 then
 			return bit.band(bit.rshift(self.clock,8),0xFF)
 		end

@@ -23,8 +23,8 @@ function printTable(tabl, wid)
 			print(string.rep(" ", wid * 3) .. i .. " = \"" .. v .. "\"")
 		elseif type(v) == "number" then
 			print(string.rep(" ", wid * 3) .. i .. " = " .. v)
-		end 
-	end 
+		end
+	end
 end
 
 local function CPU()
@@ -34,7 +34,7 @@ local function CPU()
 	jdataP = json.decode(d).CBPrefixed
 	jdataU = json.decode(d).Unprefixed
 	--printTable(jdata.Unprefixed)
-	
+
 	local self = {}
 	--local mem = mmu("tobu.gb")
 	--local mem = mmu("Tetris.gb")
@@ -43,9 +43,12 @@ local function CPU()
 	--local mem = mmu("Tetris (patched) (patched).gb")
 	--local mem = mmu("2048-gb/2048.gb")
 	--local mem = mmu("Dr. Mario (World).gb")
-	--local mem = mmu("Super Mario Land (World).gb")
+	local mem = mmu("Super Mario Land (World).gb")
 	--local mem = mmu("Asteroids (USA, Europe).gb")
 	--local mem = mmu("Pokemon - Blue Version (USA, Europe) (SGB Enhanced).gb")
+	--local mem = mmu("hanoi.gb")
+	--local mem = mmu("dmg-acid2.gb")
+	--local mem = mmu("Ranma 1-2 (Japan).gb")
 	--local mem = mmu("Space Invaders (Japan).gb")
 	local cycles = 0
 	--local mem = mmu("blarg-cpu-inst/individual/01-special.gb")
@@ -59,7 +62,7 @@ local function CPU()
 	--local mem = mmu("blarg-cpu-inst/individual/09-op r,r.gb")
 	--local mem = mmu("blarg-cpu-inst/individual/10-bit ops.gb")
 	--local mem = mmu("blarg-cpu-inst/individual/11-op a,(hl).gb")
-	local mem = mmu("blarg-cpu-inst/cpu_instrs.gb")
+	--local mem = mmu("blarg-cpu-inst/cpu_instrs.gb")
 	--local mem = mmu("gb-test-roms/instr_timing/instr_timing.gb")
 	--local mem = mmu("blarg-cpu-inst/interrupt_time.gb")
 	--local mem = mmu("mts/acceptance/timer/rapid_toggle.gb")
@@ -76,6 +79,7 @@ local function CPU()
 	--local mem = mmu("mts/acceptance/timer/tima_write_reloading.gb")
 	--local mem = mmu("mts/acceptance/timer/tma_write_reloading.gb")
 	--local mem = mmu("mts/acceptance/intr_timing.gb")
+	--local mem = mmu("mts/acceptance/ppu/stat_irq_blocking.gb")
 	self.mem = mem
 	local gpu = gpu()
 	local joy = joy()
@@ -89,10 +93,11 @@ local function CPU()
 	self.mem.timer = timer
 	self.mem.gpu = gpu
 	self.mem.joy = joy
+	
 	--$instructions$
-	
+
 	--$instructionsCB$
-	
+
 	function self.reset()
 		--registers
 		self.A = 0
@@ -112,7 +117,7 @@ local function CPU()
 		self.mem.reset()
 		self.gpu.reset()
 		self.timer.reset()
-		
+
 		self.outOfBoot = false
 		cycles = 0
 	end
@@ -123,6 +128,7 @@ local function CPU()
 			--print = function() end
 		--end
 		--print("-------fetch inst--------")
+		local pcb4 = self.PC
 		if not self.HALT then
 			local inst = mem.getByte(self.PC)+1
 			--print("0x"..string.format("%x",inst-1))
@@ -136,20 +142,25 @@ local function CPU()
 				self.PC = self.PC + 1
 				if instructionsCB[inst2] then
 					instructionsCB[inst2]()
+					if self.A == nil then print("nil ext",inst2) end
 				else
 					--error("unimplemented instruction: "..inst.." 0x"..string.format("%x",inst).."")
 					--print("no instruction")
-				end	
+				end
 			else
 				--print(jdataU[inst].Name)
 				--print("-------------------------")
 				if instructions[inst] then
+					--if self.A == nil then print("nil before",inst) end
+					--print(self.A)
 					instructions[inst]()
+					--if self.A == nil then print("nil after",inst,self.H,self.L,(lshift(self.H,8)+self.L),mem.getByte((lshift(self.H,8)+self.L))) end
 				else
 					--error("unimplemented instruction: "..inst.." 0x"..string.format("%x",inst).."")
 					--print("no instruction")
 				end
 			end
+			if self.A == nil then print(self.A,self.PC,pcb4,inst,inst2) ; error("reg A is nil") end
 		else
 			cycles = cycles + 16
 			if bit.band(self.mem.getByte(0xFFFF),self.mem.getByte(0xFF0F)) > 0 then
@@ -160,28 +171,32 @@ local function CPU()
 		if self.IME then
 			if self.mem.ipend then--see if there is an interupt to process
 				--self.mem.ipend = false
-				if bit.band(bit.band(self.mem.getByte(0xFFFF),1),bit.band(self.mem.getByte(0xFF0F,1))) > 0 then--vblank
+				if bit.band(bit.band(self.mem.getByte(0xFFFF),1),bit.band(self.mem.getByte(0xFF0F),1)) > 0 then--vblank
 					--print("vblank interupt called")
 					self.IME = false
 					self.mem.setByte(bit.band(self.mem.getByte(0xFF0F),0xFE),0xFF0F)
 					if self.mem.getByte(0xFF0F) == 0 then self.mem.ipend = false end
-					self.SP = self.SP-2  
-					self.mem.setByte(bit.band(self.PC,0xFF),self.SP) 
-					self.mem.setByte(bit.band(bit.rshift(self.PC,8),0xFF),self.SP+1) ; 
+					self.SP = self.SP-2
+					self.mem.setByte(bit.band(self.PC,0xFF),self.SP)
+					self.mem.setByte(bit.band(bit.rshift(self.PC,8),0xFF),self.SP+1) ;
 					self.PC = 0x40; cycles = cycles + 16 --[199 0xc7]
 					self.HALT = false
 					cycles = cycles + 4
-				elseif bit.band(bit.band(self.mem.getByte(0xFFFF),2),bit.band(self.mem.getByte(0xFF0F,2))) > 0 then--LCD STAT
+				elseif bit.band(bit.band(self.mem.getByte(0xFFFF),2),bit.band(self.mem.getByte(0xFF0F),2)) > 0 then--LCD STAT
+					if breaking then
+						running = false
+						print("STAT interrupt at gpu line "..self.gpu.line,self.gpu.LYC,string.format("0x%02x    0x%02x",self.gpu.LYC,self.mem.getByte(0xFF41)))
+					end
 					self.mem.setByte(bit.band(self.mem.getByte(0xFF0F),0xFD),0xFF0F)
 					self.IME = false
 					self.SP = self.SP-2  ;
-					self.mem.setByte(bit.band(self.PC,0xFF),self.SP) ; 
-					self.mem.setByte(bit.band(bit.rshift(self.PC,8),0xFF),self.SP+1) ; 
+					self.mem.setByte(bit.band(self.PC,0xFF),self.SP) ;
+					self.mem.setByte(bit.band(bit.rshift(self.PC,8),0xFF),self.SP+1) ;
 					self.PC = 0x48; cycles = cycles + 16 --[199 0xc7]
 					if self.mem.getByte(0xFF0F) == 0 then self.mem.ipend = false end
 					cycles = cycles + 4
 					self.HALT = false
-				elseif bit.band(bit.band(self.mem.getByte(0xFFFF),4),bit.band(self.mem.getByte(0xFF0F,4))) > 0 then--Timer
+				elseif bit.band(bit.band(self.mem.getByte(0xFFFF),4),bit.band(self.mem.getByte(0xFF0F),4)) > 0 then--Timer
 					self.IME = false
 					self.mem.setByte(bit.band(mem.getByte(0xFF0F),0xFB),0xFF0F)
 					if self.mem.getByte(0xFF0F) == 0 then self.mem.ipend = false end
@@ -189,7 +204,7 @@ local function CPU()
 					self.HALT = false
 					--print("timer interupt called")
 					cycles = cycles + 4
-				elseif bit.band(bit.band(self.mem.getByte(0xFFFF),8),bit.band(self.mem.getByte(0xFF0F,8))) > 0 then--Serial
+				elseif bit.band(bit.band(self.mem.getByte(0xFFFF),8),bit.band(self.mem.getByte(0xFF0F),8)) > 0 then--Serial
 					self.mem.setByte(bit.band(self.mem.getByte(0xFF0F),0xF7),0xFF0F)
 					self.IME = false
 					self.SP = self.SP-2  ; self.mem.setByte(bit.band(self.PC,0xFF),self.SP) ; self.mem.setByte(bit.band(bit.rshift(self.PC,8),0xFF),self.SP+1) ; self.PC = 0x58; cycles = cycles + 16 --[199 0xc7]
@@ -197,7 +212,7 @@ local function CPU()
 					cycles = cycles + 4
 					--print("handling serial interupt")
 					self.HALT = false
-				elseif bit.band(bit.band(self.mem.getByte(0xFFFF),16),bit.band(self.mem.getByte(0xFF0F,16))) > 0 then--Joypad
+				elseif bit.band(bit.band(self.mem.getByte(0xFFFF),16),bit.band(self.mem.getByte(0xFF0F),16)) > 0 then--Joypad
 					self.mem.setByte(bit.band(self.mem.getByte(0xFF0F),0xEF),0xFF0F)
 					self.IME = false
 					self.SP = self.SP-2  ;self.mem.setByte(bit.band(self.PC,0xFF),self.SP) ; self.mem.setByte(bit.band(bit.rshift(self.PC,8),0xFF),self.SP+1) ; self.PC = 0x60; cycles = cycles + 16 --[199 0xc7]
@@ -214,14 +229,14 @@ local function CPU()
 				self.IME = false
 			end
 		end
-		
+
 		local cyclesDT = cycles-self.cycles
 		self.cycles = cycles
 		self.instructionsExecuted = self.instructionsExecuted + 1
 		self.gpu.updateLine(cyclesDT)
 		self.timer.update(cyclesDT)
 	end
-	
+
 	function self.runInstruction(inst)
 		print("Ruinning 0x"..string.format("%x",inst))
 		if instructions[inst+1] then

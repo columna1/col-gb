@@ -50,9 +50,10 @@ local function mmu(file)
 			--if i-1 == 0x4244 then print(string.byte(str:sub(i,i))) end
 			self.rom[i-1] = string.byte(str:sub(i,i))
 		end
-		print(string.format("%02x",self.rom[0x0147]))
+		print("mbth "..string.format("%02x",self.rom[0x0147]))
 		--self.mbcType = self.rom[0x0147] == 0x13 and 3 or 0
 		local mbt = self.rom[0x0147]
+		print("mbtd "..mbt)
 		if mbt >= 0x0F and mbt <= 0x13 then self.mbcType = 3
 		elseif mbt >=0x01 and mbt <= 0x03 then self.mbcType = 3--1 temp only have "support" for mbc3 atm
 		end
@@ -123,8 +124,12 @@ local function mmu(file)
 			elseif addr == 0xFF40 then--LCD control
 				local val = 0
 				val = val + (self.gpu.switchbg and 1 or 0)
+				val = val + (self.gpu.objEnable and 2 or 0)
+				val = val + (self.gpu.objSize and 4 or 0)
 				val = val + (self.gpu.bgmap and 8 or 0)
 				val = val + (self.gpu.bgtile and 16 or 0)
+				val = val + (self.gpu.winEnable and 32 or 0)
+				val = val + (self.gpu.winMap and 64 or 0)
 				val = val + (self.gpu.switchlcd and 128 or 0)
 				return val
 			elseif addr == 0xFF41 then
@@ -192,6 +197,7 @@ local function mmu(file)
 					self.ipend = true
 				end
 			elseif addr == 0xFF40 then--LCD
+				if breaking then print(byte) end
 				self.gpu.switchbg  = bit.band(byte,bit.lshift(1,0)) > 0
 				self.gpu.objEnable = bit.band(byte,bit.lshift(1,1)) > 0
 				self.gpu.objSize   = bit.band(byte,bit.lshift(1,2)) > 0
@@ -202,7 +208,7 @@ local function mmu(file)
 				self.gpu.switchlcd = bit.band(byte,bit.lshift(1,7)) > 0
 				self.gpu.lcdc = byte
 			elseif addr == 0xFF41 then--LCD STAT register
-				self.gpu.STAT = bit.bor(bit.band(byte,0xF8),self.gpu.STAT)--bits 0-2 are read only
+				self.gpu.STAT = bit.bor(bit.band(byte,0xFC),self.gpu.STAT)--bits 0-2 are read only
 			elseif addr == 0xFF42 then
 				self.gpu.scrollY = byte
 			elseif addr == 0xFF43 then

@@ -88,7 +88,7 @@ function loveload(args)
 	local out,out2 = gen("opcode-desc.txt")
 	--print("DONE")
 	--print(out)
-	
+
 	file = io.open("cpu.lua","r")
 	dat = file:read("*a")
 	--print(out)
@@ -119,7 +119,7 @@ function loveload(args)
 	lcdwin = true
 	countwin = true
 	palettewin = true
-	
+
 	memoff = 0
 	follow = false
 	cstep = 1337
@@ -149,7 +149,7 @@ function loveload(args)
 	love.graphics.setCanvas(palcanv)
 	love.graphics.clear({1,1,1})
 	love.graphics.setCanvas()
-	
+
 	epicLog = io.open("Blargg2.txt","r")
 
 	instToBeRun = ""
@@ -186,10 +186,12 @@ function loveupdate(dt)
 	--print(dt)
 	if running then
 		targetCycles = 4194304*(dt/2)
+		--targetCycles = 4194304*(dt*2)
 		if love.keyboard.isDown(".") then targetCycles = targetCycles * 4 end
 		startCycles = gbCPU.cycles
 		while gbCPU.cycles-startCycles < targetCycles do
 			gbCPU.executeInstruction()
+			if not running then break end
 		end
 	end
 
@@ -227,7 +229,7 @@ function loveupdate(dt)
 	end
 	--print(bit.band(0,0xFF))
 	--print(bit.band(-1,0xFF))
-	
+
 	if lcdwin then
 		love.graphics.setCanvas(lcdCanvas)
 		love.graphics.clear({0.5,0.3,0.3})
@@ -238,6 +240,11 @@ function loveupdate(dt)
 					--love.graphics.setColor(gbCPU.gpu.palette[c])
 					if not colorPalette[c] then printTable(c) ; print("c") end
 					love.graphics.setColor(colorPalette[c])
+					if breaking then
+						if y == gbCPU.gpu.line-1 then
+							love.graphics.setColor(1,0,0)
+						end
+					end
 					love.graphics.points(x,y)
 				end
 			end
@@ -358,7 +365,10 @@ function loveupdate(dt)
 				gbCPU.gpu.scrollY = Slab.GetInputNumber()
 			end
 			Slab.Text("GPU Line: "..tostring(gbCPU.gpu.line))
+			Slab.Text("WIN Line: "..tostring(gbCPU.gpu.wLine))
 			Slab.Text("LCDC "..string.format("0x%02x",gbCPU.gpu.lcdc))
+			Slab.Text("LCDC.1 "..tostring(gbCPU.gpu.objEnable))
+			Slab.Text("LCDC.2 "..tostring(gbCPU.gpu.switchbg))
 			Slab.Text("LCDC.2 "..tostring(gbCPU.gpu.objSize))
 			Slab.Text("LCDC.3 "..tostring(gbCPU.gpu.bgmap))
 			Slab.Text("LCDC.4 "..tostring(gbCPU.gpu.bgtile))
@@ -887,6 +897,12 @@ function lovedraw()
 	]]
 	Slab.Draw()
 	--love.graphics.draw(canvas)
+    --local joysticks = love.joystick.getJoysticks()
+    --for i, joystick in ipairs(joysticks) do
+    --	love.graphics.setColor(0,0,0)
+    --    love.graphics.print(joystick:getName(), 10, i * 20)
+    --    love.graphics.print(joystick:getButtonCount(), 10, i * 20 + 20)
+    --end
 end
 
 local curBreakPoint = -1
@@ -928,11 +944,15 @@ numExecuted = 0
 bigboy = false
 
 checking = false
+breaking = false
 function love.keypressed(k)
 	--print(k)
 	--if k == "b" then
 	--	gbCPU.mem.setByte(0x85,0xFF40)
 	--end
+	if k == "space" then
+		breaking = not breaking
+	end
 	if k == "`" then
 		--bigboy = not bigboy
 		--checking = not checking
