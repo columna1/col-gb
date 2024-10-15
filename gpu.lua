@@ -36,6 +36,10 @@ local function gpu()
 			end
 		end
 
+		self.oamMem = {}
+		for i = 0xfe00,0xfe9f do
+			self.oamMem = 0
+		end
 		self.oam = {}
 		for i = 1,40 do
 			self.oam[i] = {0,0,0,0}--y,x,index,flags
@@ -162,6 +166,12 @@ local function gpu()
 		end
 	end
 
+	function self.getOAM(addr)
+		local n = bit.band(addr,0xFF)
+		local tilenum = math.floor(n/4)
+		local b = n-(tilenum*4)
+		return self.oam[tilenum+1][b+1]
+	end
 	function self.updateOAM(addr,val)
 		local n = bit.band(addr,0xFF)
 		local tilenum = math.floor(n/4)
@@ -171,22 +181,14 @@ local function gpu()
 
 	function self.updateTile(addr,val)
 		addr = bit.band(addr,0x1FFE)
-		local saddr = addr
-		if bit.band(addr,1) == 1 then
-			saddr = saddr - 1
-			addr = addr - 1
-		end
 		local tile = bit.band(bit.rshift(addr,4),0x1FF)
 		local y = bit.band(bit.rshift(addr,1),7)
-		--print("y",y)
 		local sx = 0
 		for x = 0,7 do
 			sx = bit.lshift(1,7-x)
 			if not self.tileSet[tile] then self.tileSet[tile] = {} end
 			if not self.tileSet[tile][y] then self.tileSet[tile][y] = {} end
-			--print(saddr,self.vram[saddr])
-			self.tileSet[tile][y][x] = ((bit.band(self.vram[saddr],sx) > 0) and 1 or 0) + ((bit.band(self.vram[saddr+1],sx) > 0) and 2 or 0)
-			--print(self.vram[addr],addr)
+			self.tileSet[tile][y][x] = ((bit.band(self.vram[addr],sx) > 0) and 1 or 0) + ((bit.band(self.vram[addr+1],sx) > 0) and 2 or 0)
 		end
 	end
 
@@ -214,6 +216,13 @@ Since the PPU only checks the Y coordinate to select objects, even off-screen ob
 				end
 			end
 		--end
+		--if self.line == 69 then
+		--	for til = 1,#lineObjects do
+		--		local o = lineObjects[til]
+		--		print(string.format("%d xy %d %d oam tile %d",til,o[2],o[1],o[3] ))
+		--	end
+		--	--printTable(lineObjects)
+		--end
 
 		for xx = 0,160 do
 			local x = xx+xoff
@@ -228,6 +237,7 @@ Since the PPU only checks the Y coordinate to select objects, even off-screen ob
 			end
 
 			--background map rendering--
+			local tilenum = 0
 			if not self.bgtile then
 				tilenum = self.vram[bit.band(n,0x1FFF)]
 				--if bit.band(tilenum,0x80) > 0 then
@@ -266,7 +276,7 @@ Since the PPU only checks the Y coordinate to select objects, even off-screen ob
 				else
 					n = n + 0x9800
 				end
-
+				tilenum = 0
 				if not self.bgtile then
 					tilenum = self.vram[bit.band(n,0x1FFF)]
 					--if bit.band(tilenum,0x80) > 0 then
@@ -279,7 +289,7 @@ Since the PPU only checks the Y coordinate to select objects, even off-screen ob
 					tilenum = self.vram[bit.band(n,0x1FFF)]
 				end
 				--tilenum = self.vram[bit.band(n,0x1FFF)]
-				local tile = self.tileSet[tilenum]
+				tile = self.tileSet[tilenum]
 				
 				if tile then
 					--print("drawing tile",xx,x,y,self.line,tile[y%8][x%8])
@@ -310,9 +320,6 @@ Since the PPU only checks the Y coordinate to select objects, even off-screen ob
 						if bit.band(lineObjects[i][4],0x20) > 0 then--horizontal flip bit 5
 							xxx = 7-xxx
 						end
-						if (bit.band(lineObjects[i][4],0x40) > 0) and not self.objSize then--vertical flip bit 6
-							ll = 7-ll
-						end
 						--print(line,x,ll,xxx)
 						local t = {}
 						if self.objSize then
@@ -333,7 +340,11 @@ Since the PPU only checks the Y coordinate to select objects, even off-screen ob
 							t = self.tileSet[lineObjects[i][3]]
 						end
 						--if not t[ll] then print(ll,ll%8,t) end
-						local p = t[ll%8][xxx]
+						local lt = ll%8
+						if (bit.band(lineObjects[i][4],0x40) > 0) then--vertical flip bit 6
+							lt = 7-lt
+						end
+						local p = t[lt][xxx]
 						if p ~= 0 then
 							--priorty bit
 							if (not (bit.band(lineObjects[i][4],0x80) > 0)) or ((bit.band(lineObjects[i][4],0x80) > 0)

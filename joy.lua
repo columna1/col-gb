@@ -36,7 +36,7 @@ local function joy()
 			b = b + bit.lshift(self.buttons.Start,3)
 			return b
 		else
-			return 0x0F
+			return 0xCF
 		end
 	end
 	self.reset()

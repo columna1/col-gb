@@ -27,7 +27,7 @@ function printTable(tabl, wid)
 	end
 end
 
-local function CPU()
+local function CPU(testing, state)
 	local f = io.open("dmgops.json","r")
 	local d = f:read("*a")
 	f:close()
@@ -36,6 +36,7 @@ local function CPU()
 	--printTable(jdata.Unprefixed)
 
 	local self = {}
+	local mem = {}
 	--local mem = mmu("tobu.gb")
 	--local mem = mmu("Tetris.gb")
 	--local mem = mmu("Chessmaster.gb")
@@ -43,9 +44,15 @@ local function CPU()
 	--local mem = mmu("Tetris (patched) (patched).gb")
 	--local mem = mmu("2048-gb/2048.gb")
 	--local mem = mmu("Dr. Mario (World).gb")
-	local mem = mmu("Super Mario Land (World).gb")
+	--local mem = mmu("Super Mario Land (World).gb")
 	--local mem = mmu("Asteroids (USA, Europe).gb")
-	--local mem = mmu("Pokemon - Blue Version (USA, Europe) (SGB Enhanced).gb")
+	local mem = mmu("Pokemon - Blue Version (USA, Europe) (SGB Enhanced).gb")
+	--local mem = mmu("Pokemon - Red Version (USA, Europe) (SGB Enhanced).gb")
+	--local mem = mmu("Pokemon - Yellow Version - Special Pikachu Edition (USA, Europe) (CGB+SGB Enhanced).gb")
+	--local mem = mmu("Wario Land II (USA, Europe) (SGB Enhanced).gb")
+	--local mem = mmu("Legend of Zelda, The - Link's Awakening (USA, Europe).gb")
+	--local mem = mmu("Zelda no Densetsu - Yume o Miru Shima (Japan).gb")
+	--local mem = mmu("better-button-test.gb")
 	--local mem = mmu("hanoi.gb")
 	--local mem = mmu("dmg-acid2.gb")
 	--local mem = mmu("Ranma 1-2 (Japan).gb")
@@ -65,7 +72,7 @@ local function CPU()
 	--local mem = mmu("blarg-cpu-inst/cpu_instrs.gb")
 	--local mem = mmu("gb-test-roms/instr_timing/instr_timing.gb")
 	--local mem = mmu("blarg-cpu-inst/interrupt_time.gb")
-	--local mem = mmu("mts/acceptance/timer/rapid_toggle.gb")
+	--local mem = mmu("mts/acceptance/timer/rapid_toggle.gb")--dosen't pass, don't know why
 	--local mem = mmu("mts/acceptance/timer/div_write.gb")
 	--local mem = mmu("mts/acceptance/timer/tim00.gb")
 	--local mem = mmu("mts/acceptance/timer/tim01.gb")
@@ -80,6 +87,33 @@ local function CPU()
 	--local mem = mmu("mts/acceptance/timer/tma_write_reloading.gb")
 	--local mem = mmu("mts/acceptance/intr_timing.gb")
 	--local mem = mmu("mts/acceptance/ppu/stat_irq_blocking.gb")
+	--local mem = mmu("mts-2024/acceptance/instr/daa.gb")
+	--local mem = mmu("mts-2024/acceptance/bits/mem_oam.gb")
+	--local mem = mmu("mts-2024/acceptance/bits/unused_hwio-GS.gb")--fails on audio
+	--local mem = mmu("mts-2024/acceptance/interrupts/ie_push.gb")--fails no round 1 concel
+	--local mem = mmu("mts-2024/acceptance/boot_regs-dmgABC.gb")
+	--local mem = mmu("mts-2024/acceptance/if_ie_registers.gb")
+	--local mem = mmu("mts-2024/acceptance/ppu/hblank_ly_scx_timing-GS.gb")
+	--local mem = mmu("mts-2024/acceptance/ppu/vblank_stat_intr-GS.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/bits_bank1.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/bits_bank2.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/bits_ramg.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/ram_64kb.gb")--test fails because I don't emulate such a low amount of ram
+	--local mem = mmu("mts-2024/emulator-only/mbc1/ram_256kb.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/rom_512kb.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/rom_1Mb.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/rom_2Mb.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/rom_4Mb.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/rom_8Mb.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/rom_16Mb.gb")
+	--local mem = mmu("gbchrono.gb")--fails on audio
+	--local mem = mmu("mbctest.gb")
+	--local mem = mmu("scribbltests/lycscx/lycscx.gb")
+	--local mem = mmu("scribbltests/lycscy/lycscy.gb")
+	--local mem = mmu("scribbltests/fairylake/fairylake.gb")
+	if testing then
+		mem = mmu("",true,state.ram)
+	end
 	self.mem = mem
 	local gpu = gpu()
 	local joy = joy()
@@ -120,9 +154,24 @@ local function CPU()
 
 		self.outOfBoot = false
 		cycles = 0
+
+		if testing then
+			self.A = state.a
+			self.B = state.b
+			self.C = state.c
+			self.D = state.d
+			self.E = state.e
+			self.H = state.h
+			self.L = state.l
+			self.F = state.f
+			self.SP = state.sp
+			self.PC = state.pc
+			self.IME = state.ime
+			self.instructionsExecuted = state.ie
+		end
 	end
 	self.instsran = {}
-	function self.executeInstruction(p)
+	function self.executeInstruction()
 		--local pr = print
 		--if not p then
 			--print = function() end
@@ -131,7 +180,10 @@ local function CPU()
 		local pcb4 = self.PC
 		if not self.HALT then
 			local inst = mem.getByte(self.PC)+1
+			--print()
+			--print("executing")
 			--print("0x"..string.format("%x",inst-1))
+			--print(inst-1)
 			self.PC = self.PC + 1
 			if inst-1 == 0xcb then
 				inst2 = mem.getByte(self.PC)+1
@@ -171,7 +223,9 @@ local function CPU()
 		if self.IME then
 			if self.mem.ipend then--see if there is an interupt to process
 				--self.mem.ipend = false
-				if bit.band(bit.band(self.mem.getByte(0xFFFF),1),bit.band(self.mem.getByte(0xFF0F),1)) > 0 then--vblank
+				local IE = self.mem.getByte(0xFFFF)
+				local IF = self.mem.getByte(0xFF0F)
+				if bit.band(bit.band(IE,1),bit.band(IF,1)) > 0 then--vblank
 					--print("vblank interupt called")
 					self.IME = false
 					self.mem.setByte(bit.band(self.mem.getByte(0xFF0F),0xFE),0xFF0F)
@@ -182,7 +236,7 @@ local function CPU()
 					self.PC = 0x40; cycles = cycles + 16 --[199 0xc7]
 					self.HALT = false
 					cycles = cycles + 4
-				elseif bit.band(bit.band(self.mem.getByte(0xFFFF),2),bit.band(self.mem.getByte(0xFF0F),2)) > 0 then--LCD STAT
+				elseif bit.band(bit.band(IE,2),bit.band(IF,2)) > 0 then--LCD STAT
 					if breaking then
 						running = false
 						print("STAT interrupt at gpu line "..self.gpu.line,self.gpu.LYC,string.format("0x%02x    0x%02x",self.gpu.LYC,self.mem.getByte(0xFF41)))
@@ -196,7 +250,7 @@ local function CPU()
 					if self.mem.getByte(0xFF0F) == 0 then self.mem.ipend = false end
 					cycles = cycles + 4
 					self.HALT = false
-				elseif bit.band(bit.band(self.mem.getByte(0xFFFF),4),bit.band(self.mem.getByte(0xFF0F),4)) > 0 then--Timer
+				elseif bit.band(bit.band(IE,4),bit.band(IF,4)) > 0 then--Timer
 					self.IME = false
 					self.mem.setByte(bit.band(mem.getByte(0xFF0F),0xFB),0xFF0F)
 					if self.mem.getByte(0xFF0F) == 0 then self.mem.ipend = false end
@@ -204,7 +258,7 @@ local function CPU()
 					self.HALT = false
 					--print("timer interupt called")
 					cycles = cycles + 4
-				elseif bit.band(bit.band(self.mem.getByte(0xFFFF),8),bit.band(self.mem.getByte(0xFF0F),8)) > 0 then--Serial
+				elseif bit.band(bit.band(IE,8),bit.band(IF,8)) > 0 then--Serial
 					self.mem.setByte(bit.band(self.mem.getByte(0xFF0F),0xF7),0xFF0F)
 					self.IME = false
 					self.SP = self.SP-2  ; self.mem.setByte(bit.band(self.PC,0xFF),self.SP) ; self.mem.setByte(bit.band(bit.rshift(self.PC,8),0xFF),self.SP+1) ; self.PC = 0x58; cycles = cycles + 16 --[199 0xc7]
@@ -212,7 +266,7 @@ local function CPU()
 					cycles = cycles + 4
 					--print("handling serial interupt")
 					self.HALT = false
-				elseif bit.band(bit.band(self.mem.getByte(0xFFFF),16),bit.band(self.mem.getByte(0xFF0F),16)) > 0 then--Joypad
+				elseif bit.band(bit.band(IE,16),bit.band(IF,16)) > 0 then--Joypad
 					self.mem.setByte(bit.band(self.mem.getByte(0xFF0F),0xEF),0xFF0F)
 					self.IME = false
 					self.SP = self.SP-2  ;self.mem.setByte(bit.band(self.PC,0xFF),self.SP) ; self.mem.setByte(bit.band(bit.rshift(self.PC,8),0xFF),self.SP+1) ; self.PC = 0x60; cycles = cycles + 16 --[199 0xc7]

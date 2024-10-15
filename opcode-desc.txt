@@ -320,7 +320,7 @@ op.
 4|0x9D:local t = getFC ; local temp = L ; setFHst A temp t ; A = A - temp ; A = A - t ; if A < 0 then setFCo else setFCz end ; A = limit A ; setFZ A ; setFNo
 4|0x9F:local t = getFC ; local temp = A ; setFHst A temp t ; A = A - temp ; A = A - t ; if A < 0 then setFCo else setFCz end ; A = limit A ; setFZ A ; setFNo
 8|0xDE:local t = getFC ; local temp = rbi PC ; setFHst A temp t ; A = A - temp ; A = A - t ; if A < 0 then setFCo else setFCz end ; A = limit A ; setFZ A ; setFNo
-8|0x9E:local t = getFC ; local temp = rbi HL ; setFHst A temp t ; A = A - temp ; A = A - t ; if A < 0 then setFCo else setFCz end ; A = limit A ; setFZ A ; setFNo
+8|0x9E:local t = getFC ; local temp = rb HL ; setFHst A temp t ; A = A - temp ; A = A - t ; if A < 0 then setFCo else setFCz end ; A = limit A ; setFZ A ; setFNo
 
 #bitwise
 4|0xA0:A = band A B ; setFZ A ; setFNz ; setFHo ; setFCz
@@ -329,7 +329,7 @@ op.
 4|0xA3:A = band A E ; setFZ A ; setFNz ; setFHo ; setFCz
 4|0xA4:A = band A H ; setFZ A ; setFNz ; setFHo ; setFCz
 4|0xA5:A = band A L ; setFZ A ; setFNz ; setFHo ; setFCz
-4|0xA6:A = band A rb HL ; setFZ A ; setFNz ; setFHo ; setFCz
+8|0xA6:A = band A rb HL ; setFZ A ; setFNz ; setFHo ; setFCz
 4|0xA7:A = band A A ; setFZ A ; setFNz ; setFHo ; setFCz
 
 4|0xA8:A = xor A B ; setFZ A ; setFNz ; setFHz ; setFCz
@@ -371,7 +371,7 @@ op.
 8|0x30:ifnc PC = PC + rbsi PC  ; incCyc 4 end
 8|0x38:ifc  PC = PC + rbsi PC  ; incCyc 4 end
 
-12|0x18:PC = PC + rbsi PC
+12|0x18:PC = PC + rbsi PC ; PC = limitS PC
 
 #JP
 12|0xC2:local temp = sxb rbi PC rbi PCP ifnz PC = temp incCyc 4 ; PC = PC - 2 ; end

@@ -86,7 +86,7 @@ local function timer()
 			return self.TMA 
 		end
 		if b == 0xFF07 then
-			return self.TAC
+			return bit.bor(self.TAC,0xF8)
 		end
 	end
 	self.reset()

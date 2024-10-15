@@ -1,4 +1,4 @@
-local function mmu(file)
+local function mmu(file,testing,state)
 	local self = {}
 	
 	local bios = {}
@@ -10,9 +10,24 @@ local function mmu(file)
 		self.zeroPage = {}--FF80-FFFF
 		self.romBank0 = {}--0000-3FFF
 		self.romBank1 = {}--4000-7FFF
+
+		--MBC related
 		self.mbcType = 0
 		self.memBank = 0
+		self.ramBank = 0
+		self.eRamEnable = false
+		self.eRam = {}
+		self.rtcEn = 0
+		self.bigRom = false
+		for i = 0x00,0x8000 do--persistant storage for saves and such
+			self.eRam[i] = 0
+		end--32kb
+
 		self.ipend = false
+
+
+		self.sc = 0--serial control
+
 		
 		for i = 0xC000,0xDFFF do
 			self.workingRam[i-0xC000] = 0--init working ram to 0
@@ -37,75 +52,168 @@ local function mmu(file)
 	0x21, 0x04, 0x01, 0x11, 0xA8, 0x00, 0x1A, 0x13, 0xBE, 0x20, 0xFE, 0x23, 0x7D, 0xFE, 0x34, 0x20, 
 	0xF5, 0x06, 0x19, 0x78, 0x86, 0x23, 0x05, 0x20, 0xFB, 0x86, 0x20, 0xFE, 0x3E, 0x01, 0xE0, 0x50}--bios rom WARNING © NINTENDO
 
-		if not file then error("no rom to load") end
-		local romFile = io.open(file,"rb")
-		if not romFile then error("could not open rom") end
-		local str = romFile:read("*a")
-		--local str,size = love.filesystem.read(file)
-		--if not str then
-		--	error("could not open rom")
-		--end
 		self.rom = {}
-		for i = 1,#str do
+		for i = 1,0x7FFF do
 			--if i-1 == 0x4244 then print(string.byte(str:sub(i,i))) end
-			self.rom[i-1] = string.byte(str:sub(i,i))
+			self.rom[i-1] = 0
 		end
-		print("mbth "..string.format("%02x",self.rom[0x0147]))
-		--self.mbcType = self.rom[0x0147] == 0x13 and 3 or 0
-		local mbt = self.rom[0x0147]
-		print("mbtd "..mbt)
-		if mbt >= 0x0F and mbt <= 0x13 then self.mbcType = 3
-		elseif mbt >=0x01 and mbt <= 0x03 then self.mbcType = 3--1 temp only have "support" for mbc3 atm
-		end
-		print("MBC ID: "..self.mbcType)
-		--[[
-		for i = 0x0000,0x3FFF do
-			self.romBank0[i] = self.rom[i]
-		end
-		if self.mbcType == 0 then
-			for i = 0x4000,0x7FFF do
-				self.romBank1[i] = self.rom[i]
+		if testing then-- json tests
+			self.testingram = {}
+			for i = 1,0xFFFF do
+				--if i-1 == 0x4244 then print(string.byte(str:sub(i,i))) end
+				self.testingram[i-1] = 0
 			end
-		end]]--
-		self.inBootRom = 0
+			--print("setting state")
+			for i = 1,#state do
+				--print(state[i][2],state[i][1])
+				self.setByte(state[i][2],state[i][1])
+			end
+		else
+			if not file then error("no rom to load") end
+			local romFile = io.open(file,"rb")
+			if not romFile then error("could not open rom") end
+			local str = romFile:read("*a")
+			romFile:close()
+			--local str,size = love.filesystem.read(file)
+			--if not str then
+			--	error("could not open rom")
+			--end
+			for i = 1,#str do
+				--if i-1 == 0x4244 then print(string.byte(str:sub(i,i))) end
+				self.rom[i-1] = string.byte(str:sub(i,i))
+			end
+			print("mbth "..string.format("%02x",self.rom[0x0147]))
+			--self.mbcType = self.rom[0x0147] == 0x13 and 3 or 0
+			local mbt = self.rom[0x0147]
+			print("mbtd "..mbt)
+			if mbt == 0x03 then--MBC1 + Ram + Battery
+				self.mbcType = 1
+				--if #self.rom > 102400 then self.bigRom = true end
+			elseif mbt == 0 then --no MBC
+				print("mbc type 0")
+			elseif mbt == 19 then --MBC3+RAM+BATTERY
+				self.mbcType = 3
+				if #self.rom > 102400 then self.bigRom = true end
+			elseif mbt == 17 then --MBC3
+				self.mbcType = 3
+				if #self.rom > 102400 then self.bigRom = true end
+			elseif mbt == 1 then --MBC1
+				self.mbcType = 1
+				--if #self.rom > 102400 then self.bigRom = true end
+			else
+				error(string.format("MBC type %s not implemented",mbt))
+			end
+			print("MBC ID: "..self.mbcType)
+			--self.mbcType = 0
+			--[[
+			for i = 0x0000,0x3FFF do
+				self.romBank0[i] = self.rom[i]
+			end
+			if self.mbcType == 0 then
+				for i = 0x4000,0x7FFF do
+					self.romBank1[i] = self.rom[i]
+				end
+			end]]--
+			self.inBootRom = 0
+		end
 		self.intFlags = 0
+		--print("value",self.rom[786432])
 	end
 
 	function self.getByte(addr)
+		if testing then
+			return self.testingram[addr]
+		end
+		--print("read",addr)
+		local function getBits(len)--calculate the number of bits needed to mask a certain size, then return mask
+			--get bits needed
+			len = len / 0x4000--the number of pages needed
+			local bits = math.floor(math.log(len) / math.log(2))
+			local mask = 1
+			for i = 1,bits do
+				mask = bit.lshift(mask,1)
+				mask = mask+1
+			end
+			return mask
+		end
 		--print(string.format("get byte addr: 0x%x(%d)",addr,addr))
 		local function pr(num)
 			--print(string.format("returned value: 0x%x(%d)",num,num))
 		end
-		if addr >= 0x00 and addr < 0x100 then
+		if (addr >= 0x00) and (addr < 0x100) and (self.inBootRom == 0) then
 			--accessing bios
-			--print("get byte ",addr,bios[addr])
-			--print("from bios")
-			--pr(bios[addr])
-			if self.inBootRom == 0 then
-				return bios[addr]
-			else
-				----return self.romBank0[addr]
-				return self.rom[addr]
-			end
+			--print("get byte ",addr,
+			--print(self.inBootRom)
+			return bios[addr]
 		elseif addr >= 0x0000 and addr <= 0x3FFF then
 			--print("get byte ",addr,rom[addr-0x100])
 			--print("from rom")
 			--pr(self.romBank0[addr])
 			----return self.romBank0[addr]
+			if self.mbcType == 1 and self.bigRom then
+				local adr = addr
+				--if self.memBank ~= 1 then print(self.memBank) end
+				local mb = bit.band(bit.band(self.memBank,0x60),getBits(#self.rom))--wtf why
+				--print()
+				--print(mb,bit.band(self.memBank,0x30),self.memBank)
+				--if mb == 16 then mb = 0 end--todo MBC1M
+				adr = addr + (0x4000*(mb))
+				--print("returning",adr,mb)
+				return self.rom[adr]
+			end
 			return self.rom[addr]
 		elseif addr >= 0x4000 and addr <= 0x7FFF then
 			if self.mbcType == 0 then 
 				----return self.romBank1[addr]
 				return self.rom[addr]
+			elseif self.mbcType == 1 then--todo other un-reachable pages in MBC1
+				local adr = addr
+				--if self.memBank ~= 1 then print(self.memBank) end
+				local mb = bit.band(self.memBank,getBits(#self.rom))
+				if bit.band(self.memBank,0x1F) == 0 then mb = mb + 1 end
+				adr = addr + (0x4000*(mb-1))
+				return self.rom[adr]
 			elseif self.mbcType == 3 then
 				local adr = addr
-				local mb = self.memBank
-				if self.memBank == 0 then mb = 1 end
+				local mb = bit.band(self.memBank,getBits(#self.rom))
+				if mb == 0 then mb = 1 end
 				adr = addr + (0x4000*(mb-1))
 				return self.rom[adr]
 			end
 		elseif addr >=0x8000 and addr <= 0x9FFF then--gpu memory
 			return self.gpu.vram[bit.band(addr,0x1FFF)]
+		elseif addr >= 0xA000 and addr <= 0xBFFF then
+			--MBC1 External ram
+			--print("read from ram")
+			if self.mbcType == 1 and self.eRamEnable then--todo MBC1 big roms
+				--print("somethin")
+				if not self.bigRom then
+					--print("mode 0 read")
+					return self.eRam[(addr-0xA000)]
+				else
+					--print("mode 1 ram read, retrning ",self.eRam[(addr-0xA000)+(self.ramBank*0x2000)],(addr-0xA000)+(self.ramBank*0x2000))
+					return self.eRam[(addr-0xA000)+(self.ramBank*0x2000)]
+				end
+			elseif self.mbcType == 3 and self.eRamEnable then
+				return self.eRam[(addr-0xA000)+(self.ramBank*0x2000)]--todo RTC
+			else
+				return 0xFF
+			end--[[
+			if self.eRamEnable then
+				if self.rtcEn == 0x08 then--seconds
+					return 30
+				elseif self.rtcEn == 0x09 then--minutes
+					return 5
+				elseif self.rtcEn == 0x0A then--hours
+					return 5
+				elseif self.rtcEn == 0x0B then--day lower 8 bits
+					return 100
+				elseif self.rtcEn == 0x0C then--day higher 1 bit
+					return 0
+				elseif self.mbcType == 3 then
+					return self.eRam[(addr-0xA000)+(self.ramBank*0x2000)]
+				end
+			end]]
 		elseif addr >= 0xC000 and addr <= 0xDFFF then
 			--print("from ram")
 			pr(self.workingRam[addr-0xC000])
@@ -114,13 +222,19 @@ local function mmu(file)
 			--print("from ram copy")
 			pr(self.workingRam[addr-0xE000])
 			return self.workingRam[addr-0xE000]
+		elseif addr >= 0xFE00 and addr <= 0xFE9F then--gpu OAM map
+			return self.gpu.getOAM(addr)
 		elseif addr >= 0xFF00 and addr <= 0xFF7F then--device flags
 			if addr == 0xFF00 then--controler
 				return self.joy.rb()
+			elseif addr >= 0xFF01 and addr <= 0xFF02 then--serial 
+				if addr == 0xFF02 then
+					return bit.bor(self.sc,0x7E) --0111110
+				end
 			elseif addr >= 0xFF04 and addr <= 0xFF07 then
 				return self.timer.rb(addr)
 			elseif addr == 0xFF0F then
-				return self.intFlags
+				return bit.bor(self.intFlags,0xE0)
 			elseif addr == 0xFF40 then--LCD control
 				local val = 0
 				val = val + (self.gpu.switchbg and 1 or 0)
@@ -157,18 +271,86 @@ local function mmu(file)
 
 	function self.setByte(byte,addr)
 		--print(string.format("set byte addr: 0x%x(%d) value: 0x%x(%d)",addr,addr,byte,byte))
+		if testing then
+			self.testingram[addr] = byte
+			return
+		end
 		if addr >= 0x0000 and addr <= 0x1FFF then--ram enable/disable
 			--print("ram enable")
+			if self.mbcType == 3 or self.mbcType == 1 then
+				if bit.band(0x0F,byte) == 0x0A then
+					--print("ram enable",byte)
+					self.eRamEnable = true
+				else
+					--print("ram disabled")
+					self.eRamEnable = false
+				end
+			end
 			--print(addr,byte)
-		elseif addr >= 0x2000 and addr <= 0x3FFF then
+		elseif addr >= 0x2000 and addr <= 0x3FFF then --rom bank number
 			--print("rom bank num")
 			--print(addr,byte)
-			self.memBank = bit.band(0x1F,byte)
+			if self.mbcType == 1 then
+				self.memBank = bit.band(self.memBank,0x600) + bit.band(0x1F,byte)--mbc1
+			elseif self.mbcType == 3 then
+				print("Set memory bank",bit.band(0x7F,byte),byte)
+				self.memBank = bit.band(0x7F,byte)--mbc3
+				--if self.memBank == 0 then self.memBank = 1 end--?
+			end--mbc3
+		elseif addr >= 0x4000 and addr <= 0x5FFF then --ram bank number BANK2
+			--if byte ~=0 then error("not yet implemented") end
+			if self.mbcType == 1 then
+				if self.bigRom then
+					--print("bigmode",byte)
+					--print(self.memBank)
+					--print("setting ram bank # ",byte)
+					self.ramBank = bit.band(0x03,byte)
+					--print(self.memBank)
+					self.memBank = bit.bor(bit.band(self.memBank,0x1F),bit.lshift(bit.band(0x03,byte),5))--mbc1
+				else
+					self.ramBank = bit.band(0x03,byte)
+					self.memBank = bit.bor(bit.band(self.memBank,0x1F),bit.lshift(bit.band(0x03,byte),5))--mbc1
+				end
+			elseif self.mbcType == 3 then
+				if byte >= 0x08 and byte <= 0x0C then
+					print("RTC bank num")
+					print(addr,byte)
+					self.rtcEn = byte
+				else
+					print("RAM bank number")
+					print(bit.band(0x03,byte),byte)
+					self.ramBank = bit.band(0x03,byte)
+					self.rtcEn = 0
+				end
+			end
+		elseif addr >= 0x6000 and addr <= 0x7FFF then
+			if self.mbcType == 1 then
+				if bit.band(byte,1) > 0 then
+					self.bigRom = true
+				else
+					self.bigRom = false
+				end
+				print("MBC1 banking mode changed to",byte)
+				--if byte ~= 0 then error("MBC1 banking mode is not fully implemented") end
+			elseif self.mbcType == 3 then
+				--todo? RTC
+				print("RTC written to")
+			end
+		elseif addr >= 0xA000 and addr <= 0xBFFF then
+			if self.rtcEn > 0 then return end
+			if self.mbcType == 3 and self.eRamEnable then
+				self.eRam[(addr-0xA000)+(self.ramBank*0x2000)] = byte
+			end
+			if self.mbcType == 1 and self.eRamEnable then
+				if not self.bigRom then
+					self.eRam[(addr-0xA000)] = byte
+				else
+					--print("mode 1 ram write",self.ramBank,addr)
+					self.eRam[(addr-0xA000)+(self.ramBank*0x2000)] = byte
+				end
+			end
 		elseif addr >= 0xC000 and addr <= 0xDFFF then
 			--print("to ram")
-			if addr == 0xDD02 then
-				--error (self.cpu.PC)
-			end
 			self.workingRam[addr-0xC000] = byte
 		elseif addr >= 0xE000 and addr <= 0xFDFF then--shadow
 			--print("to ram copy")
@@ -188,11 +370,12 @@ local function mmu(file)
 			elseif addr == 0xFF02 then
 				--print("serial transfer control set to")
 				--print(byte)
+				self.sc = byte
 			elseif addr >= 0xFF04 and addr <= 0xFF07 then
 				self.timer.wb(byte,addr)
 			elseif addr == 0xFF0F then
 				--print(byte)
-				self.intFlags = byte
+				self.intFlags = bit.band(byte,0x1F)
 				if bit.band(self.getByte(0xFFFF),self.getByte(0xFF0F)) > 0 then
 					self.ipend = true
 				end

@@ -27,7 +27,7 @@ function printTable(tabl, wid)
 	end
 end
 
-local function CPU()
+local function CPU(testing, state)
 	local f = io.open("dmgops.json","r")
 	local d = f:read("*a")
 	f:close()
@@ -36,6 +36,7 @@ local function CPU()
 	--printTable(jdata.Unprefixed)
 
 	local self = {}
+	local mem = {}
 	--local mem = mmu("tobu.gb")
 	--local mem = mmu("Tetris.gb")
 	--local mem = mmu("Chessmaster.gb")
@@ -43,9 +44,15 @@ local function CPU()
 	--local mem = mmu("Tetris (patched) (patched).gb")
 	--local mem = mmu("2048-gb/2048.gb")
 	--local mem = mmu("Dr. Mario (World).gb")
-	local mem = mmu("Super Mario Land (World).gb")
+	--local mem = mmu("Super Mario Land (World).gb")
 	--local mem = mmu("Asteroids (USA, Europe).gb")
-	--local mem = mmu("Pokemon - Blue Version (USA, Europe) (SGB Enhanced).gb")
+	local mem = mmu("Pokemon - Blue Version (USA, Europe) (SGB Enhanced).gb")
+	--local mem = mmu("Pokemon - Red Version (USA, Europe) (SGB Enhanced).gb")
+	--local mem = mmu("Pokemon - Yellow Version - Special Pikachu Edition (USA, Europe) (CGB+SGB Enhanced).gb")
+	--local mem = mmu("Wario Land II (USA, Europe) (SGB Enhanced).gb")
+	--local mem = mmu("Legend of Zelda, The - Link's Awakening (USA, Europe).gb")
+	--local mem = mmu("Zelda no Densetsu - Yume o Miru Shima (Japan).gb")
+	--local mem = mmu("better-button-test.gb")
 	--local mem = mmu("hanoi.gb")
 	--local mem = mmu("dmg-acid2.gb")
 	--local mem = mmu("Ranma 1-2 (Japan).gb")
@@ -65,7 +72,7 @@ local function CPU()
 	--local mem = mmu("blarg-cpu-inst/cpu_instrs.gb")
 	--local mem = mmu("gb-test-roms/instr_timing/instr_timing.gb")
 	--local mem = mmu("blarg-cpu-inst/interrupt_time.gb")
-	--local mem = mmu("mts/acceptance/timer/rapid_toggle.gb")
+	--local mem = mmu("mts/acceptance/timer/rapid_toggle.gb")--dosen't pass, don't know why
 	--local mem = mmu("mts/acceptance/timer/div_write.gb")
 	--local mem = mmu("mts/acceptance/timer/tim00.gb")
 	--local mem = mmu("mts/acceptance/timer/tim01.gb")
@@ -80,6 +87,33 @@ local function CPU()
 	--local mem = mmu("mts/acceptance/timer/tma_write_reloading.gb")
 	--local mem = mmu("mts/acceptance/intr_timing.gb")
 	--local mem = mmu("mts/acceptance/ppu/stat_irq_blocking.gb")
+	--local mem = mmu("mts-2024/acceptance/instr/daa.gb")
+	--local mem = mmu("mts-2024/acceptance/bits/mem_oam.gb")
+	--local mem = mmu("mts-2024/acceptance/bits/unused_hwio-GS.gb")--fails on audio
+	--local mem = mmu("mts-2024/acceptance/interrupts/ie_push.gb")--fails no round 1 concel
+	--local mem = mmu("mts-2024/acceptance/boot_regs-dmgABC.gb")
+	--local mem = mmu("mts-2024/acceptance/if_ie_registers.gb")
+	--local mem = mmu("mts-2024/acceptance/ppu/hblank_ly_scx_timing-GS.gb")
+	--local mem = mmu("mts-2024/acceptance/ppu/vblank_stat_intr-GS.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/bits_bank1.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/bits_bank2.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/bits_ramg.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/ram_64kb.gb")--test fails because I don't emulate such a low amount of ram
+	--local mem = mmu("mts-2024/emulator-only/mbc1/ram_256kb.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/rom_512kb.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/rom_1Mb.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/rom_2Mb.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/rom_4Mb.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/rom_8Mb.gb")
+	--local mem = mmu("mts-2024/emulator-only/mbc1/rom_16Mb.gb")
+	--local mem = mmu("gbchrono.gb")--fails on audio
+	--local mem = mmu("mbctest.gb")
+	--local mem = mmu("scribbltests/lycscx/lycscx.gb")
+	--local mem = mmu("scribbltests/lycscy/lycscy.gb")
+	--local mem = mmu("scribbltests/fairylake/fairylake.gb")
+	if testing then
+		mem = mmu("",true,state.ram)
+	end
 	self.mem = mem
 	local gpu = gpu()
 	local joy = joy()
@@ -125,7 +159,7 @@ function() self.F = (band(band(self.D,0xF )+band( 1,0xF ),0x10) == 0x10) and bor
 function() self.F = (band(band(self.D,0xF )-band( 1,0xF ),0x10) == 0x10) and bor(self.F,0x20) or band(self.F,0xDF)  ;self.D = self.D- 1  ;self.D = bit.band(self.D,0xFF) ; self.F = (self.D == 0) and bor(self.F,0x80) or band(self.F,0x7F) ; self.F = bor(self.F,0x40); cycles = cycles + 4 end,--[21 0x15]
 function() self.D = mem.getByte(self.PC); cycles = cycles + 8; self.PC = self.PC+ 1 end,--[22 0x16]
 function()  local temp = (band(self.F,0x10)>0 and 1 or 0) ; self.A = lshift(self.A, 1)  ; self.F = ((band(self.A, 256) == 0) and band(self.F,0xEF) or bor(self.F,0x10))  ;self.A = bor(self.A,temp) ; self.A = bit.band(self.A,0xFF) ; self.F = band(self.F,0x7F) ; self.F = band(self.F,0xDF) ; self.F = band(self.F,0xBF); cycles = cycles + 4 end,--[23 0x17]
-function() self.PC = self.PC + mem.getSignedByte(self.PC); cycles = cycles + 12; self.PC = self.PC+ 1 end,--[24 0x18]
+function() self.PC = self.PC + mem.getSignedByte(self.PC) ; self.PC = bit.band(self.PC,0xFFFF); cycles = cycles + 12; self.PC = self.PC+ 1 end,--[24 0x18]
 function()  local temp = (lshift(self.H,8)+self.L)+(lshift(self.D,8)+self.E) ; self.F = (band((lshift(self.H,8)+self.L),0xFFF )+band((lshift(self.D,8)+self.E),0xFFF ) > 0xFFF ) and bor(self.F,0x20) or band(self.F,0xDF) ; self.F = (band((lshift(self.H,8)+self.L),0xFFFF)+band((lshift(self.D,8)+self.E),0xFFFF) > 0xFFFF) and bor(self.F,0x10) or band(self.F,0xEF) ; temp = bit.band(temp,0xFFFF) ; self.H = rshift(band(temp,0xFF00),8) ; self.L = band(temp,0xFF) ; self.F = band(self.F,0xBF); cycles = cycles + 8 end,--[25 0x19]
 function() self.A = mem.getByte((self.E+lshift(self.D,8))); cycles = cycles + 8 end,--[26 0x1a]
 function()  local temp = (lshift(self.D,8)+self.E) ;temp = temp-1  ;temp = bit.band(temp,0xFFFF) ; self.D = rshift(band(temp,0xFF00),8) ; self.E = band(temp,0xFF); cycles = cycles + 8 end,--[27 0x1b]
@@ -259,7 +293,7 @@ function()  local t = (band(self.F,0x10)>0 and 1 or 0) ;  local temp = self.D ; 
 function()  local t = (band(self.F,0x10)>0 and 1 or 0) ;  local temp = self.E ; self.F = (band(band(self.A,0xF )-band(temp,0xF )-band(t,0xF ),0x10) == 0x10) and bor(self.F,0x20) or band(self.F,0xDF) ; self.A = self.A - temp ; self.A = self.A - t ; if self.A <  0 then self.F = bit.bor(self.F,0x10) else self.F = band(self.F,0xEF) end ; self.A = bit.band(self.A,0xFF) ; self.F = (self.A == 0) and bor(self.F,0x80) or band(self.F,0x7F) ; self.F = bit.bor(self.F,0x40); cycles = cycles + 4 end,--[155 0x9b]
 function()  local t = (band(self.F,0x10)>0 and 1 or 0) ;  local temp = self.H ; self.F = (band(band(self.A,0xF )-band(temp,0xF )-band(t,0xF ),0x10) == 0x10) and bor(self.F,0x20) or band(self.F,0xDF) ; self.A = self.A - temp ; self.A = self.A - t ; if self.A <  0 then self.F = bit.bor(self.F,0x10) else self.F = band(self.F,0xEF) end ; self.A = bit.band(self.A,0xFF) ; self.F = (self.A == 0) and bor(self.F,0x80) or band(self.F,0x7F) ; self.F = bit.bor(self.F,0x40); cycles = cycles + 4 end,--[156 0x9c]
 function()  local t = (band(self.F,0x10)>0 and 1 or 0) ;  local temp = self.L ; self.F = (band(band(self.A,0xF )-band(temp,0xF )-band(t,0xF ),0x10) == 0x10) and bor(self.F,0x20) or band(self.F,0xDF) ; self.A = self.A - temp ; self.A = self.A - t ; if self.A <  0 then self.F = bit.bor(self.F,0x10) else self.F = band(self.F,0xEF) end ; self.A = bit.band(self.A,0xFF) ; self.F = (self.A == 0) and bor(self.F,0x80) or band(self.F,0x7F) ; self.F = bit.bor(self.F,0x40); cycles = cycles + 4 end,--[157 0x9d]
-function()  local t = (band(self.F,0x10)>0 and 1 or 0) ;  local temp = mem.getByte((lshift(self.H,8)+self.L)) ; self.F = (band(band(self.A,0xF )-band(temp,0xF )-band(t,0xF ),0x10) == 0x10) and bor(self.F,0x20) or band(self.F,0xDF) ; self.A = self.A - temp ; self.A = self.A - t ; if self.A <  0 then self.F = bit.bor(self.F,0x10) else self.F = band(self.F,0xEF) end ; self.A = bit.band(self.A,0xFF) ; self.F = (self.A == 0) and bor(self.F,0x80) or band(self.F,0x7F) ; self.F = bit.bor(self.F,0x40); cycles = cycles + 8; self.PC = self.PC+ 1 end,--[158 0x9e]
+function()  local t = (band(self.F,0x10)>0 and 1 or 0) ;  local temp = mem.getByte((lshift(self.H,8)+self.L)) ; self.F = (band(band(self.A,0xF )-band(temp,0xF )-band(t,0xF ),0x10) == 0x10) and bor(self.F,0x20) or band(self.F,0xDF) ; self.A = self.A - temp ; self.A = self.A - t ; if self.A <  0 then self.F = bit.bor(self.F,0x10) else self.F = band(self.F,0xEF) end ; self.A = bit.band(self.A,0xFF) ; self.F = (self.A == 0) and bor(self.F,0x80) or band(self.F,0x7F) ; self.F = bit.bor(self.F,0x40); cycles = cycles + 8 end,--[158 0x9e]
 function()  local t = (band(self.F,0x10)>0 and 1 or 0) ;  local temp = self.A ; self.F = (band(band(self.A,0xF )-band(temp,0xF )-band(t,0xF ),0x10) == 0x10) and bor(self.F,0x20) or band(self.F,0xDF) ; self.A = self.A - temp ; self.A = self.A - t ; if self.A <  0 then self.F = bit.bor(self.F,0x10) else self.F = band(self.F,0xEF) end ; self.A = bit.band(self.A,0xFF) ; self.F = (self.A == 0) and bor(self.F,0x80) or band(self.F,0x7F) ; self.F = bit.bor(self.F,0x40); cycles = cycles + 4 end,--[159 0x9f]
 function() self.A = band(self.A,self.B) ; self.F = (self.A == 0) and bor(self.F,0x80) or band(self.F,0x7F) ; self.F = band(self.F,0xBF) ; self.F = bit.bor(self.F,0x20) ; self.F = band(self.F,0xEF); cycles = cycles + 4 end,--[160 0xa0]
 function() self.A = band(self.A,self.C) ; self.F = (self.A == 0) and bor(self.F,0x80) or band(self.F,0x7F) ; self.F = band(self.F,0xBF) ; self.F = bit.bor(self.F,0x20) ; self.F = band(self.F,0xEF); cycles = cycles + 4 end,--[161 0xa1]
@@ -267,7 +301,7 @@ function() self.A = band(self.A,self.D) ; self.F = (self.A == 0) and bor(self.F,
 function() self.A = band(self.A,self.E) ; self.F = (self.A == 0) and bor(self.F,0x80) or band(self.F,0x7F) ; self.F = band(self.F,0xBF) ; self.F = bit.bor(self.F,0x20) ; self.F = band(self.F,0xEF); cycles = cycles + 4 end,--[163 0xa3]
 function() self.A = band(self.A,self.H) ; self.F = (self.A == 0) and bor(self.F,0x80) or band(self.F,0x7F) ; self.F = band(self.F,0xBF) ; self.F = bit.bor(self.F,0x20) ; self.F = band(self.F,0xEF); cycles = cycles + 4 end,--[164 0xa4]
 function() self.A = band(self.A,self.L) ; self.F = (self.A == 0) and bor(self.F,0x80) or band(self.F,0x7F) ; self.F = band(self.F,0xBF) ; self.F = bit.bor(self.F,0x20) ; self.F = band(self.F,0xEF); cycles = cycles + 4 end,--[165 0xa5]
-function() self.A = band(self.A,mem.getByte((lshift(self.H,8)+self.L))) ; self.F = (self.A == 0) and bor(self.F,0x80) or band(self.F,0x7F) ; self.F = band(self.F,0xBF) ; self.F = bit.bor(self.F,0x20) ; self.F = band(self.F,0xEF); cycles = cycles + 4 end,--[166 0xa6]
+function() self.A = band(self.A,mem.getByte((lshift(self.H,8)+self.L))) ; self.F = (self.A == 0) and bor(self.F,0x80) or band(self.F,0x7F) ; self.F = band(self.F,0xBF) ; self.F = bit.bor(self.F,0x20) ; self.F = band(self.F,0xEF); cycles = cycles + 8 end,--[166 0xa6]
 function() self.A = band(self.A,self.A) ; self.F = (self.A == 0) and bor(self.F,0x80) or band(self.F,0x7F) ; self.F = band(self.F,0xBF) ; self.F = bit.bor(self.F,0x20) ; self.F = band(self.F,0xEF); cycles = cycles + 4 end,--[167 0xa7]
 function() self.A = xor(self.A,self.B) ; self.F = (self.A == 0) and bor(self.F,0x80) or band(self.F,0x7F) ; self.F = band(self.F,0xBF) ; self.F = band(self.F,0xDF) ; self.F = band(self.F,0xEF); cycles = cycles + 4 end,--[168 0xa8]
 function() self.A = xor(self.A,self.C) ; self.F = (self.A == 0) and bor(self.F,0x80) or band(self.F,0x7F) ; self.F = band(self.F,0xBF) ; self.F = band(self.F,0xDF) ; self.F = band(self.F,0xEF); cycles = cycles + 4 end,--[169 0xa9]
@@ -640,9 +674,24 @@ function() self.A = bor(self.A, 128); cycles = cycles + 8 end,--[255 0xff]
 
 		self.outOfBoot = false
 		cycles = 0
+
+		if testing then
+			self.A = state.a
+			self.B = state.b
+			self.C = state.c
+			self.D = state.d
+			self.E = state.e
+			self.H = state.h
+			self.L = state.l
+			self.F = state.f
+			self.SP = state.sp
+			self.PC = state.pc
+			self.IME = state.ime
+			self.instructionsExecuted = state.ie
+		end
 	end
 	self.instsran = {}
-	function self.executeInstruction(p)
+	function self.executeInstruction()
 		--local pr = print
 		--if not p then
 			--print = function() end
@@ -651,7 +700,10 @@ function() self.A = bor(self.A, 128); cycles = cycles + 8 end,--[255 0xff]
 		local pcb4 = self.PC
 		if not self.HALT then
 			local inst = mem.getByte(self.PC)+1
+			--print()
+			--print("executing")
 			--print("0x"..string.format("%x",inst-1))
+			--print(inst-1)
 			self.PC = self.PC + 1
 			if inst-1 == 0xcb then
 				inst2 = mem.getByte(self.PC)+1
@@ -691,7 +743,9 @@ function() self.A = bor(self.A, 128); cycles = cycles + 8 end,--[255 0xff]
 		if self.IME then
 			if self.mem.ipend then--see if there is an interupt to process
 				--self.mem.ipend = false
-				if bit.band(bit.band(self.mem.getByte(0xFFFF),1),bit.band(self.mem.getByte(0xFF0F),1)) > 0 then--vblank
+				local IE = self.mem.getByte(0xFFFF)
+				local IF = self.mem.getByte(0xFF0F)
+				if bit.band(bit.band(IE,1),bit.band(IF,1)) > 0 then--vblank
 					--print("vblank interupt called")
 					self.IME = false
 					self.mem.setByte(bit.band(self.mem.getByte(0xFF0F),0xFE),0xFF0F)
@@ -702,7 +756,7 @@ function() self.A = bor(self.A, 128); cycles = cycles + 8 end,--[255 0xff]
 					self.PC = 0x40; cycles = cycles + 16 --[199 0xc7]
 					self.HALT = false
 					cycles = cycles + 4
-				elseif bit.band(bit.band(self.mem.getByte(0xFFFF),2),bit.band(self.mem.getByte(0xFF0F),2)) > 0 then--LCD STAT
+				elseif bit.band(bit.band(IE,2),bit.band(IF,2)) > 0 then--LCD STAT
 					if breaking then
 						running = false
 						print("STAT interrupt at gpu line "..self.gpu.line,self.gpu.LYC,string.format("0x%02x    0x%02x",self.gpu.LYC,self.mem.getByte(0xFF41)))
@@ -716,7 +770,7 @@ function() self.A = bor(self.A, 128); cycles = cycles + 8 end,--[255 0xff]
 					if self.mem.getByte(0xFF0F) == 0 then self.mem.ipend = false end
 					cycles = cycles + 4
 					self.HALT = false
-				elseif bit.band(bit.band(self.mem.getByte(0xFFFF),4),bit.band(self.mem.getByte(0xFF0F),4)) > 0 then--Timer
+				elseif bit.band(bit.band(IE,4),bit.band(IF,4)) > 0 then--Timer
 					self.IME = false
 					self.mem.setByte(bit.band(mem.getByte(0xFF0F),0xFB),0xFF0F)
 					if self.mem.getByte(0xFF0F) == 0 then self.mem.ipend = false end
@@ -724,7 +778,7 @@ function() self.A = bor(self.A, 128); cycles = cycles + 8 end,--[255 0xff]
 					self.HALT = false
 					--print("timer interupt called")
 					cycles = cycles + 4
-				elseif bit.band(bit.band(self.mem.getByte(0xFFFF),8),bit.band(self.mem.getByte(0xFF0F),8)) > 0 then--Serial
+				elseif bit.band(bit.band(IE,8),bit.band(IF,8)) > 0 then--Serial
 					self.mem.setByte(bit.band(self.mem.getByte(0xFF0F),0xF7),0xFF0F)
 					self.IME = false
 					self.SP = self.SP-2  ; self.mem.setByte(bit.band(self.PC,0xFF),self.SP) ; self.mem.setByte(bit.band(bit.rshift(self.PC,8),0xFF),self.SP+1) ; self.PC = 0x58; cycles = cycles + 16 --[199 0xc7]
@@ -732,7 +786,7 @@ function() self.A = bor(self.A, 128); cycles = cycles + 8 end,--[255 0xff]
 					cycles = cycles + 4
 					--print("handling serial interupt")
 					self.HALT = false
-				elseif bit.band(bit.band(self.mem.getByte(0xFFFF),16),bit.band(self.mem.getByte(0xFF0F),16)) > 0 then--Joypad
+				elseif bit.band(bit.band(IE,16),bit.band(IF,16)) > 0 then--Joypad
 					self.mem.setByte(bit.band(self.mem.getByte(0xFF0F),0xEF),0xFF0F)
 					self.IME = false
 					self.SP = self.SP-2  ;self.mem.setByte(bit.band(self.PC,0xFF),self.SP) ; self.mem.setByte(bit.band(bit.rshift(self.PC,8),0xFF),self.SP+1) ; self.PC = 0x60; cycles = cycles + 16 --[199 0xc7]

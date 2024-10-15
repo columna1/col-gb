@@ -63,9 +63,13 @@ end
 
 function loveload(args)
 
+
 	--local f = io.open("dmgops.json","r")
 	--local d = f:read("*a")
 	--f:close()
+
+	local unitTest = false
+
 	local d,_ = love.filesystem.read("dmgops.json")
 	jdataP = json.decode(d).CBPrefixed
 	jdataU = json.decode(d).Unprefixed
@@ -99,6 +103,85 @@ function loveload(args)
 	file:write(dat)
 	file:close()
 	local cpu = require("cpu2")
+
+
+	local function runTest(fn)
+		local d,e = love.filesystem.read(fn)
+		if d then
+			local testData = json.decode(d)
+			--printTable(testData)
+			for i = 1,99 do --todo run json tests
+				--printTable(testData[i])
+				print(string.format("running test %s test number %d",testData[i].name,i))
+				--print("initalizing cpu")
+				local testcpu = cpu(true,testData[i].initial)
+				--print("initalized cpu")
+				--print(testcpu.A)
+				local function testAddr(exp,addr,af,bf)
+					if not af then af = "" end
+					if not bf then bf = "" end
+					assert(testcpu.mem.getByte(addr) == exp,
+					string.format("%sMemory value didn't match%s. Expected %d at address %d but got %d",
+					bf,af,exp,addr,testcpu.mem.getByte(addr)))
+				end
+
+				--we aren't cycle accurate
+				--[[for c = 1,#testData[i].cycles do
+					testAddr(testData[i].cycles[c][2],testData[i].cycles[c][1]," at cycle "..c)
+					testcpu.executeInstruction()
+					print("pc",testcpu.PC)
+				end
+				print("testing cycles")
+				while testcpu.cycles/4 <= #testData[i].cycles do
+					local c = testcpu.cycles/4
+					assert(c == math.floor(testcpu.cycles/4),"cycle mismatch? ")
+					if testData[i].cycles[c] then
+						print(c,#testData[i].cycles)
+						testAddr(testData[i].cycles[c][2],testData[i].cycles[c][1]," at cycle "..c)
+					end
+					if c >= #testData[i].cycles then
+						break
+					end
+					testcpu.executeInstruction()
+					print("pc",testcpu.PC)
+				end]]
+				testcpu.executeInstruction()
+				--check for final state
+				local function test(name,got,exp)
+					assert(got == exp,
+					string.format("Final state reg %s did not match. Expected %d, got %d",name,exp,got))	
+				end
+				test("A",testcpu.A,testData[i].final.a)
+				test("B",testcpu.B,testData[i].final.b)
+				test("C",testcpu.C,testData[i].final.c)
+				test("D",testcpu.D,testData[i].final.d)
+				test("E",testcpu.E,testData[i].final.e)
+				test("F",testcpu.F,testData[i].final.f)
+				test("H",testcpu.H,testData[i].final.h)
+				test("L",testcpu.L,testData[i].final.l)
+				test("PC",testcpu.PC,testData[i].final.pc)
+				test("SP",testcpu.SP,testData[i].final.sp)
+				for a = 1,#testData[i].final.ram do
+					testAddr(testData[i].final.ram[a][2],testData[i].final.ram[a][1],"","Final ")
+				end
+			end
+		end
+	end
+	if unitTest then
+		for tn = 0x00,0xff do
+			if tn == 0xcb then
+				for tb = 0x00,0xFF do
+					runTest(string.format("sm83/v1/cb %02x.json",tb))
+				end
+			else
+				runTest(string.format("sm83/v1/%02x.json",tn))
+			end
+		end
+		error("tests finished")
+	end
+
+
+
 
 	gbCPU = cpu()
 	love.graphics.setBackgroundColor(0.4, 0.88, 1.0)
@@ -178,6 +261,10 @@ function loveload(args)
 			table.insert(frameInputs,it)
 		end
 	end
+
+
+
+
 end
 
 function loveupdate(dt)
@@ -185,8 +272,10 @@ function loveupdate(dt)
 	--4194304hz
 	--print(dt)
 	if running then
-		targetCycles = 4194304*(dt/2)
-		--targetCycles = 4194304*(dt*2)
+		--targetCycles = 4194304*(dt/2)
+		targetCycles = math.min(4194304*dt,4194304/4)
+		--print(dt)
+		--targetCycles = 4194304*(math.min(dt,0.1)*2)
 		if love.keyboard.isDown(".") then targetCycles = targetCycles * 4 end
 		startCycles = gbCPU.cycles
 		while gbCPU.cycles-startCycles < targetCycles do
@@ -422,11 +511,12 @@ function loveupdate(dt)
 				local f = love.timer.getTime()
 				--step until breakpoint
 				if breakPointList.num and breakPointList.num > 0 then
-					for _ = 1,3000000 do
+					for _ = 1,30000000 do
 						--gbCPU.executeInstruction()
 						file:write(string.format("A: %02x F: %02x B: %02x C: %02x D: %02x E: %02x H: %02x L: %02x SP: %04x PC: 00:%04x \n",gbCPU.A,gbCPU.F,gbCPU.B,gbCPU.C,gbCPU.D,gbCPU.E,gbCPU.H,gbCPU.L,gbCPU.SP,gbCPU.PC))
 						if checking then stepCheck() else gbCPU.executeInstruction() end
 						if breakPointList[gbCPU.PC] == true then
+							print("broke")
 							break
 						end
 						--if numExecuted == 406770 then
@@ -718,7 +808,7 @@ function loveupdate(dt)
 			if Slab.CheckBox(gbCPU.HALT, "HALT",{Tooltip = "CPU HALT"}) then
 				gbCPU.HALT = not gbCPU.HALT
 			end
-			local hz = (4.194304*1000000)/2
+			local hz = (4.194304*1000000)
 			Slab.Text("Cpu cycles "..gbCPU.cycles)
 			Slab.Text("("..string.format("%.4f",gbCPU.cycles/hz)..")seconds")
 
@@ -943,6 +1033,8 @@ end
 numExecuted = 0
 bigboy = false
 
+startwatch = 0
+
 checking = false
 breaking = false
 function love.keypressed(k)
@@ -950,6 +1042,15 @@ function love.keypressed(k)
 	--if k == "b" then
 	--	gbCPU.mem.setByte(0x85,0xFF40)
 	--end
+	--[[
+	if k == "a" then
+		if startwatch ==0 then
+			startwatch = love.timer.getTime()
+		else
+			print("time",love.timer.getTime()-startwatch)
+			startwatch = 0
+		end
+	end]]
 	if k == "space" then
 		breaking = not breaking
 	end
