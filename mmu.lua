@@ -12,6 +12,7 @@ local function mmu(file,testing,state)
 		self.romBank1 = {}--4000-7FFF
 
 		--MBC related
+		self.fn = file
 		self.mbcType = 0
 		self.memBank = 0
 		self.ramBank = 0
@@ -19,9 +20,6 @@ local function mmu(file,testing,state)
 		self.eRam = {}
 		self.rtcEn = 0
 		self.bigRom = false
-		for i = 0x00,0x8000 do--persistant storage for saves and such
-			self.eRam[i] = 0
-		end--32kb
 
 		self.ipend = false
 
@@ -84,6 +82,21 @@ local function mmu(file,testing,state)
 			end
 			print("rom size: "..self.rom[0x0148])--todo: utilize these
 			print("ram size: "..self.rom[0x0149])
+			local ramLUT = {
+				[0] = 0,
+				[1] = 0,
+				[2] = 1024*8,
+				[3] = 1024*32,
+				[4] = 1024*128,
+				[5] = 1024*64
+			}
+			self.ramSize = ramLUT[self.rom[0x0149]]
+			print(self.ramSize)
+			for i = 0x00,self.ramSize-1 do--persistant storage for saves and such
+				self.eRam[i] = 0
+			end
+
+
 			print("mbth "..string.format("%02x",self.rom[0x0147]))
 			--self.mbcType = self.rom[0x0147] == 0x13 and 3 or 0
 			local mbt = self.rom[0x0147]

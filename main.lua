@@ -75,6 +75,21 @@ local function updateMode1(dt)
 			gbCPU.executeInstruction()
 			if not running then break end
 		end
+		local hz = (4.194304 * 1000000)
+		local sec = gbCPU.cycles / hz
+		if sec > math.ceil(ls) then
+			--print("saved",sec)
+			local savestr = ""
+			for i = 0,gbCPU.mem.ramSize-1 do
+				savestr = savestr..string.char(gbCPU.mem.eRam[i])
+			end
+			--print(#savestr)
+			local _,_,o = string.find(gbCPU.mem.fn,"roms/(.+).gb$")
+			--print(s,e,o,t,th)
+			love.filesystem.write(o..".save",savestr)
+			--print(o..".save",gbCPU.mem.ramSize,#savestr)
+			ls = sec
+		end
 	end
 
 	angle = angle + dt * 3
@@ -766,6 +781,7 @@ local function setupMode1(fn)
 	--local f = io.open("dmgops.json","r")
 	--local d = f:read("*a")
 	--f:close()
+	ls = 0
 
 	local unitTest = false
 
@@ -882,9 +898,21 @@ local function setupMode1(fn)
 
 
 	gbCPU = cpu(nil, nil, fn)
+
+	local _,_,o = string.find(gbCPU.mem.fn,"roms/(.+).gb$")
+	if love.filesystem.getInfo(o..".save") then
+		print("loading save")
+		local sav,siz = love.filesystem.read(o..".save")
+		print(#sav,size)
+		for i = 1,siz do
+			gbCPU.mem.eRam[i-1] = string.byte(sav:sub(i,i))
+		end
+	end
+
+
+
 	love.graphics.setBackgroundColor(0.4, 0.88, 1.0)
 
-	consolas = love.graphics.newFont("consola.ttf", 12)
 	--print(consolas)
 	--love.graphics.setFont(consolas)
 	cpuwin = true
@@ -1154,6 +1182,7 @@ local function kpmode1(k)
 		gbCPU.runInstruction(0x90)
 	end]]
 end
+
 local function kpmode0(k)
 	if k == "return" then
 		Entered = true
@@ -1166,6 +1195,7 @@ end
 
 function loveload(args)
 	mode = 0
+	consolas = love.graphics.newFont("consola.ttf", 12)
 	Slab.Initialize(args)
 	Slab.PushFont(consolas)
 	Slab.DisableDocks { "Left", "Right", "Bottom" }
