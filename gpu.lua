@@ -46,6 +46,9 @@ local function gpu()
 		end
 
 		self.palette = {4,3,2,1}
+		self.paletteb = 0
+		self.obp0b = 0
+		self.obp1b = 0
 		self.obp0 = {4,3,2,4}
 		self.obp1 = {1,2,3,4}
 		self.palette[0] = 1
@@ -244,7 +247,7 @@ Since the PPU only checks the Y coordinate to select objects, even off-screen ob
 				--	tilenum = -(bit.band(bit.bnot(tilenum),0xFF)+1)
 				--end
 				tilenum = (tilenum+128)%256
-				
+
 				tilenum = 128+tilenum
 			else
 				tilenum = self.vram[bit.band(n,0x1FFF)]
@@ -253,7 +256,7 @@ Since the PPU only checks the Y coordinate to select objects, even off-screen ob
 			if tile then
 				--self.scrdata[xx][self.line] = tile[y%8][x%8]
 				self.scrdata[xx][self.line] = self.palette[tile[y%8][x%8]]
-			else 
+			else
 				self.scrdata[xx][self.line] = 1
 			end
 			if not self.switchbg then
@@ -283,30 +286,30 @@ Since the PPU only checks the Y coordinate to select objects, even off-screen ob
 					--	tilenum = -(bit.band(bit.bnot(tilenum),0xFF)+1)
 					--end
 					tilenum = (tilenum+128)%256
-					
+
 					tilenum = 128+tilenum
 				else
 					tilenum = self.vram[bit.band(n,0x1FFF)]
 				end
 				--tilenum = self.vram[bit.band(n,0x1FFF)]
 				tile = self.tileSet[tilenum]
-				
+
 				if tile then
 					--print("drawing tile",xx,x,y,self.line,tile[y%8][x%8])
 					--print("drawing wile",xx,wx,wy,self.line,tile[wy%8][wx%8])
-					--self.scrdata[xx][self.line] = tile[y%8][x%8] 
-					self.scrdata[xx][self.line] = self.palette[tile[wy%8][wx%8]] 
-				else 
+					--self.scrdata[xx][self.line] = tile[y%8][x%8]
+					self.scrdata[xx][self.line] = self.palette[tile[wy%8][wx%8]]
+				else
 					self.scrdata[xx][self.line] = 3
 				end
-				
+
 			end
 
 
 			--object rendering--
 			local cp = self.scrdata[xx][self.line] --cp is
 			local pixelX = 1000--the current x priority of the object on this pixel. if the x priority is lower then we can draw over otherwise just ignore
-			
+
 			if self.objEnable then--Todo, maybe put this in a better place? it was being moved around because I had a bug elsewhere
 				for i = #lineObjects,1,-1 do
 					if (lineObjects[i][2] > xx) and (lineObjects[i][2] <= xx+8) then--x pos
@@ -349,7 +352,7 @@ Since the PPU only checks the Y coordinate to select objects, even off-screen ob
 							--priorty bit
 							if (not (bit.band(lineObjects[i][4],0x80) > 0)) or ((bit.band(lineObjects[i][4],0x80) > 0)
 							and cp == 1) then
-								--object palette 
+								--object palette
 								if objx <= pixelX then
 									if bit.band(lineObjects[i][4],0x10) > 0 then
 										self.scrdata[xx][self.line] = self.obp1[p]
@@ -367,54 +370,6 @@ Since the PPU only checks the Y coordinate to select objects, even off-screen ob
 		end
 	end
 
-	function self.step(dt)--is this even used?
-		if self.mode == 2 then
-			--OAM read, scanline is active
-			if self.clock >= 80 then
-				self.clock = 0
-				--self.clock = self.clock-80
-				self.mode = 3
-			end
-		elseif self.mode == 3 then
-			--vram read mode, scanline is active
-			--end of scanline
-			if self.clock >= 172 then
-				self.clock = 0
-				----self.clock = self.clock-172
-				self.mode = 0
-				
-				self.renderScanLine()
-			end
-		elseif self.mode == 0 then
-			--hblank
-			if self.clock >= 204 then
-				self.clock = 0
-				--self.clock = self.clock-204
-				self.line = self.line + 1
-				
-				if self.line == 143 then
-					--enter vblank
-					self.mode = 1
-					self.renderCanvas()
-				else
-					--start next line
-					self.mode = 2
-				end
-			end
-		elseif self.mode == 1 then
-			--vblank for 10 lines
-			if self.clock >= 456 then
-				self.clock = 0
-				--self.clock = self.clock-456
-				self.line = self.line + 1
-				if self.line > 153 then
-					self.mode = 2
-					self.line = 0
-				end
-			end
-		end
-	end
-	
 	self.reset()
 	return self
 end

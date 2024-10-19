@@ -14,7 +14,7 @@ on binary operations every instruction
 
 function printTable(tabl, wid)
 	if not wid then wid = 1 end
-	for i,v in pairs(tabl) do
+	for i, v in pairs(tabl) do
 		if type(v) == "table" then
 			print(string.rep(" ", wid * 3) .. i .. " = {")
 			printTable(v, wid + 1)
@@ -27,8 +27,8 @@ function printTable(tabl, wid)
 	end
 end
 
-local function CPU(testing, state)
-	local f = io.open("dmgops.json","r")
+local function CPU(testing, state, filename)
+	local f = io.open("dmgops.json", "r")
 	local d = f:read("*a")
 	f:close()
 	jdataP = json.decode(d).CBPrefixed
@@ -37,82 +37,14 @@ local function CPU(testing, state)
 
 	local self = {}
 	local mem = {}
-	--local mem = mmu("tobu.gb")
-	--local mem = mmu("Tetris.gb")
-	--local mem = mmu("Chessmaster.gb")
-	--local mem = mmu("Tetris (patched).gb")
-	--local mem = mmu("Tetris (patched) (patched).gb")
-	--local mem = mmu("2048-gb/2048.gb")
-	--local mem = mmu("Dr. Mario (World).gb")
-	--local mem = mmu("Super Mario Land (World).gb")
-	--local mem = mmu("Asteroids (USA, Europe).gb")
-	local mem = mmu("Pokemon - Blue Version (USA, Europe) (SGB Enhanced).gb")
-	--local mem = mmu("Pokemon - Red Version (USA, Europe) (SGB Enhanced).gb")
-	--local mem = mmu("Pokemon - Yellow Version - Special Pikachu Edition (USA, Europe) (CGB+SGB Enhanced).gb")
-	--local mem = mmu("Wario Land II (USA, Europe) (SGB Enhanced).gb")
-	--local mem = mmu("Legend of Zelda, The - Link's Awakening (USA, Europe).gb")
-	--local mem = mmu("Zelda no Densetsu - Yume o Miru Shima (Japan).gb")
-	--local mem = mmu("better-button-test.gb")
-	--local mem = mmu("hanoi.gb")
-	--local mem = mmu("dmg-acid2.gb")
-	--local mem = mmu("Ranma 1-2 (Japan).gb")
-	--local mem = mmu("Space Invaders (Japan).gb")
+	if filename then
+		mem = mmu(filename)
+	else
+		mem = mmu("roms/mbctest.gb") --idk
+	end
 	local cycles = 0
-	--local mem = mmu("blarg-cpu-inst/individual/01-special.gb")
-	--local mem = mmu("blarg-cpu-inst/individual/02-interrupts.gb")
-	--local mem = mmu("blarg-cpu-inst/individual/03-op sp,hl.gb")
-	--local mem = mmu("blarg-cpu-inst/individual/04-op r,imm.gb")
-	--local mem = mmu("blarg-cpu-inst/individual/05-op rp.gb")
-	--local mem = mmu("blarg-cpu-inst/individual/06-ld r,r.gb")
-	--local mem = mmu("blarg-cpu-inst/individual/07-jr,jp,call,ret,rst.gb")
-	--local mem = mmu("blarg-cpu-inst/individual/08-misc instrs.gb")
-	--local mem = mmu("blarg-cpu-inst/individual/09-op r,r.gb")
-	--local mem = mmu("blarg-cpu-inst/individual/10-bit ops.gb")
-	--local mem = mmu("blarg-cpu-inst/individual/11-op a,(hl).gb")
-	--local mem = mmu("blarg-cpu-inst/cpu_instrs.gb")
-	--local mem = mmu("gb-test-roms/instr_timing/instr_timing.gb")
-	--local mem = mmu("blarg-cpu-inst/interrupt_time.gb")
-	--local mem = mmu("mts/acceptance/timer/rapid_toggle.gb")--dosen't pass, don't know why
-	--local mem = mmu("mts/acceptance/timer/div_write.gb")
-	--local mem = mmu("mts/acceptance/timer/tim00.gb")
-	--local mem = mmu("mts/acceptance/timer/tim01.gb")
-	--local mem = mmu("mts/acceptance/timer/tim10.gb")
-	--local mem = mmu("mts/acceptance/timer/tim11.gb")
-	--local mem = mmu("mts/acceptance/timer/tim00_div_trigger.gb")
-	--local mem = mmu("mts/acceptance/timer/tim01_div_trigger.gb")
-	--local mem = mmu("mts/acceptance/timer/tim10_div_trigger.gb")
-	--local mem = mmu("mts/acceptance/timer/tim11_div_trigger.gb")
-	--local mem = mmu("mts/acceptance/timer/tima_reload.gb")
-	--local mem = mmu("mts/acceptance/timer/tima_write_reloading.gb")
-	--local mem = mmu("mts/acceptance/timer/tma_write_reloading.gb")
-	--local mem = mmu("mts/acceptance/intr_timing.gb")
-	--local mem = mmu("mts/acceptance/ppu/stat_irq_blocking.gb")
-	--local mem = mmu("mts-2024/acceptance/instr/daa.gb")
-	--local mem = mmu("mts-2024/acceptance/bits/mem_oam.gb")
-	--local mem = mmu("mts-2024/acceptance/bits/unused_hwio-GS.gb")--fails on audio
-	--local mem = mmu("mts-2024/acceptance/interrupts/ie_push.gb")--fails no round 1 concel
-	--local mem = mmu("mts-2024/acceptance/boot_regs-dmgABC.gb")
-	--local mem = mmu("mts-2024/acceptance/if_ie_registers.gb")
-	--local mem = mmu("mts-2024/acceptance/ppu/hblank_ly_scx_timing-GS.gb")
-	--local mem = mmu("mts-2024/acceptance/ppu/vblank_stat_intr-GS.gb")
-	--local mem = mmu("mts-2024/emulator-only/mbc1/bits_bank1.gb")
-	--local mem = mmu("mts-2024/emulator-only/mbc1/bits_bank2.gb")
-	--local mem = mmu("mts-2024/emulator-only/mbc1/bits_ramg.gb")
-	--local mem = mmu("mts-2024/emulator-only/mbc1/ram_64kb.gb")--test fails because I don't emulate such a low amount of ram
-	--local mem = mmu("mts-2024/emulator-only/mbc1/ram_256kb.gb")
-	--local mem = mmu("mts-2024/emulator-only/mbc1/rom_512kb.gb")
-	--local mem = mmu("mts-2024/emulator-only/mbc1/rom_1Mb.gb")
-	--local mem = mmu("mts-2024/emulator-only/mbc1/rom_2Mb.gb")
-	--local mem = mmu("mts-2024/emulator-only/mbc1/rom_4Mb.gb")
-	--local mem = mmu("mts-2024/emulator-only/mbc1/rom_8Mb.gb")
-	--local mem = mmu("mts-2024/emulator-only/mbc1/rom_16Mb.gb")
-	--local mem = mmu("gbchrono.gb")--fails on audio
-	--local mem = mmu("mbctest.gb")
-	--local mem = mmu("scribbltests/lycscx/lycscx.gb")
-	--local mem = mmu("scribbltests/lycscy/lycscy.gb")
-	--local mem = mmu("scribbltests/fairylake/fairylake.gb")
 	if testing then
-		mem = mmu("",true,state.ram)
+		mem = mmu("", true, state.ram)
 	end
 	self.mem = mem
 	local gpu = gpu()
@@ -127,7 +59,7 @@ local function CPU(testing, state)
 	self.mem.timer = timer
 	self.mem.gpu = gpu
 	self.mem.joy = joy
-	
+
 	bor = bit.bor
 band = bit.band
 xor = bit.bxor
@@ -690,31 +622,32 @@ function() self.A = bor(self.A, 128); cycles = cycles + 8 end,--[255 0xff]
 			self.instructionsExecuted = state.ie
 		end
 	end
+
 	self.instsran = {}
 	function self.executeInstruction()
 		--local pr = print
 		--if not p then
-			--print = function() end
+		--print = function() end
 		--end
 		--print("-------fetch inst--------")
 		local pcb4 = self.PC
 		if not self.HALT then
-			local inst = mem.getByte(self.PC)+1
+			local inst = mem.getByte(self.PC) + 1
 			--print()
 			--print("executing")
 			--print("0x"..string.format("%x",inst-1))
 			--print(inst-1)
 			self.PC = self.PC + 1
-			if inst-1 == 0xcb then
-				inst2 = mem.getByte(self.PC)+1
-				self.instsran[inst2-1] = true
+			if inst - 1 == 0xcb then
+				inst2 = mem.getByte(self.PC) + 1
+				self.instsran[inst2 - 1] = true
 				--print(jdataP[inst2].Name)
 				--print("-------------------------")
 				--print("\t0x"..string.format("%x",inst2-1))
 				self.PC = self.PC + 1
 				if instructionsCB[inst2] then
 					instructionsCB[inst2]()
-					if self.A == nil then print("nil ext",inst2) end
+					if self.A == nil then print("nil ext", inst2) end
 				else
 					--error("unimplemented instruction: "..inst.." 0x"..string.format("%x",inst).."")
 					--print("no instruction")
@@ -732,64 +665,73 @@ function() self.A = bor(self.A, 128); cycles = cycles + 8 end,--[255 0xff]
 					--print("no instruction")
 				end
 			end
-			if self.A == nil then print(self.A,self.PC,pcb4,inst,inst2) ; error("reg A is nil") end
+			if self.A == nil then
+				print(self.A, self.PC, pcb4, inst, inst2); error("reg A is nil")
+			end
 		else
 			cycles = cycles + 16
-			if bit.band(self.mem.getByte(0xFFFF),self.mem.getByte(0xFF0F)) > 0 then
+			if bit.band(self.mem.getByte(0xFFFF), self.mem.getByte(0xFF0F)) > 0 then
 				self.HALT = false
 			end
 			--print("halt INC "..self.cycles)
 		end
 		if self.IME then
-			if self.mem.ipend then--see if there is an interupt to process
+			if self.mem.ipend then --see if there is an interupt to process
 				--self.mem.ipend = false
 				local IE = self.mem.getByte(0xFFFF)
 				local IF = self.mem.getByte(0xFF0F)
-				if bit.band(bit.band(IE,1),bit.band(IF,1)) > 0 then--vblank
+				if bit.band(bit.band(IE, 1), bit.band(IF, 1)) > 0 then --vblank
 					--print("vblank interupt called")
 					self.IME = false
-					self.mem.setByte(bit.band(self.mem.getByte(0xFF0F),0xFE),0xFF0F)
+					self.mem.setByte(bit.band(self.mem.getByte(0xFF0F), 0xFE), 0xFF0F)
 					if self.mem.getByte(0xFF0F) == 0 then self.mem.ipend = false end
-					self.SP = self.SP-2
-					self.mem.setByte(bit.band(self.PC,0xFF),self.SP)
-					self.mem.setByte(bit.band(bit.rshift(self.PC,8),0xFF),self.SP+1) ;
+					self.SP = self.SP - 2
+					self.mem.setByte(bit.band(self.PC, 0xFF), self.SP)
+					self.mem.setByte(bit.band(bit.rshift(self.PC, 8), 0xFF), self.SP + 1);
 					self.PC = 0x40; cycles = cycles + 16 --[199 0xc7]
 					self.HALT = false
 					cycles = cycles + 4
-				elseif bit.band(bit.band(IE,2),bit.band(IF,2)) > 0 then--LCD STAT
+				elseif bit.band(bit.band(IE, 2), bit.band(IF, 2)) > 0 then --LCD STAT
 					if breaking then
 						running = false
-						print("STAT interrupt at gpu line "..self.gpu.line,self.gpu.LYC,string.format("0x%02x    0x%02x",self.gpu.LYC,self.mem.getByte(0xFF41)))
+						print("STAT interrupt at gpu line " .. self.gpu.line, self.gpu.LYC,
+							string.format("0x%02x    0x%02x", self.gpu.LYC, self.mem.getByte(0xFF41)))
 					end
-					self.mem.setByte(bit.band(self.mem.getByte(0xFF0F),0xFD),0xFF0F)
+					self.mem.setByte(bit.band(self.mem.getByte(0xFF0F), 0xFD), 0xFF0F)
 					self.IME = false
-					self.SP = self.SP-2  ;
-					self.mem.setByte(bit.band(self.PC,0xFF),self.SP) ;
-					self.mem.setByte(bit.band(bit.rshift(self.PC,8),0xFF),self.SP+1) ;
+					self.SP = self.SP - 2;
+					self.mem.setByte(bit.band(self.PC, 0xFF), self.SP);
+					self.mem.setByte(bit.band(bit.rshift(self.PC, 8), 0xFF), self.SP + 1);
 					self.PC = 0x48; cycles = cycles + 16 --[199 0xc7]
 					if self.mem.getByte(0xFF0F) == 0 then self.mem.ipend = false end
 					cycles = cycles + 4
 					self.HALT = false
-				elseif bit.band(bit.band(IE,4),bit.band(IF,4)) > 0 then--Timer
+				elseif bit.band(bit.band(IE, 4), bit.band(IF, 4)) > 0 then --Timer
 					self.IME = false
-					self.mem.setByte(bit.band(mem.getByte(0xFF0F),0xFB),0xFF0F)
+					self.mem.setByte(bit.band(mem.getByte(0xFF0F), 0xFB), 0xFF0F)
 					if self.mem.getByte(0xFF0F) == 0 then self.mem.ipend = false end
-					self.SP = self.SP-2  ;self.mem.setByte(bit.band(self.PC,0xFF),self.SP) ; self.mem.setByte(bit.band(bit.rshift(self.PC,8),0xFF),self.SP+1) ; self.PC = 0x50; cycles = cycles + 16 --[199 0xc7]
+					self.SP = self.SP - 2; self.mem.setByte(bit.band(self.PC, 0xFF), self.SP); self.mem.setByte(
+						bit.band(bit.rshift(self.PC, 8), 0xFF), self.SP + 1); self.PC = 0x50; cycles = cycles +
+						16 --[199 0xc7]
 					self.HALT = false
 					--print("timer interupt called")
 					cycles = cycles + 4
-				elseif bit.band(bit.band(IE,8),bit.band(IF,8)) > 0 then--Serial
-					self.mem.setByte(bit.band(self.mem.getByte(0xFF0F),0xF7),0xFF0F)
+				elseif bit.band(bit.band(IE, 8), bit.band(IF, 8)) > 0 then --Serial
+					self.mem.setByte(bit.band(self.mem.getByte(0xFF0F), 0xF7), 0xFF0F)
 					self.IME = false
-					self.SP = self.SP-2  ; self.mem.setByte(bit.band(self.PC,0xFF),self.SP) ; self.mem.setByte(bit.band(bit.rshift(self.PC,8),0xFF),self.SP+1) ; self.PC = 0x58; cycles = cycles + 16 --[199 0xc7]
+					self.SP = self.SP - 2; self.mem.setByte(bit.band(self.PC, 0xFF), self.SP); self.mem.setByte(
+						bit.band(bit.rshift(self.PC, 8), 0xFF), self.SP + 1); self.PC = 0x58; cycles = cycles +
+						16 --[199 0xc7]
 					if self.mem.getByte(0xFF0F) == 0 then self.mem.ipend = false end
 					cycles = cycles + 4
 					--print("handling serial interupt")
 					self.HALT = false
-				elseif bit.band(bit.band(IE,16),bit.band(IF,16)) > 0 then--Joypad
-					self.mem.setByte(bit.band(self.mem.getByte(0xFF0F),0xEF),0xFF0F)
+				elseif bit.band(bit.band(IE, 16), bit.band(IF, 16)) > 0 then --Joypad
+					self.mem.setByte(bit.band(self.mem.getByte(0xFF0F), 0xEF), 0xFF0F)
 					self.IME = false
-					self.SP = self.SP-2  ;self.mem.setByte(bit.band(self.PC,0xFF),self.SP) ; self.mem.setByte(bit.band(bit.rshift(self.PC,8),0xFF),self.SP+1) ; self.PC = 0x60; cycles = cycles + 16 --[199 0xc7]
+					self.SP = self.SP - 2; self.mem.setByte(bit.band(self.PC, 0xFF), self.SP); self.mem.setByte(
+						bit.band(bit.rshift(self.PC, 8), 0xFF), self.SP + 1); self.PC = 0x60; cycles = cycles +
+						16 --[199 0xc7]
 					if self.mem.getByte(0xFF0F) == 0 then self.mem.ipend = false end
 					cycles = cycles + 4
 					self.HALT = false
@@ -804,7 +746,7 @@ function() self.A = bor(self.A, 128); cycles = cycles + 8 end,--[255 0xff]
 			end
 		end
 
-		local cyclesDT = cycles-self.cycles
+		local cyclesDT = cycles - self.cycles
 		self.cycles = cycles
 		self.instructionsExecuted = self.instructionsExecuted + 1
 		self.gpu.updateLine(cyclesDT)
@@ -812,14 +754,15 @@ function() self.A = bor(self.A, 128); cycles = cycles + 8 end,--[255 0xff]
 	end
 
 	function self.runInstruction(inst)
-		print("Ruinning 0x"..string.format("%x",inst))
-		if instructions[inst+1] then
-			instructions[inst+1]()
+		print("Ruinning 0x" .. string.format("%x", inst))
+		if instructions[inst + 1] then
+			instructions[inst + 1]()
 		else
 			--error("unimplemented instruction: "..inst.." 0x"..string.format("%x",inst).."")
 			print("no instruction")
 		end
 	end
+
 	self.reset()
 	return self
 end
