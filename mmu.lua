@@ -14,7 +14,7 @@ local function mmu(file,testing,state)
 		--MBC related
 		self.fn = file
 		self.mbcType = 0
-		self.memBank = 0
+		self.memBank = 1
 		self.ramBank = 0
 		self.eRamEnable = false
 		self.eRam = {}
@@ -82,6 +82,7 @@ local function mmu(file,testing,state)
 			end
 			print("rom size: "..self.rom[0x0148])--todo: utilize these
 			print("ram size: "..self.rom[0x0149])
+			print(string.format("CGB flag: 0x%02x",self.rom[0x0143]))
 			local ramLUT = {
 				[0] = 0,
 				[1] = 0,
@@ -90,10 +91,16 @@ local function mmu(file,testing,state)
 				[4] = 1024*128,
 				[5] = 1024*64
 			}
-			self.ramSize = ramLUT[self.rom[0x0149]]
+			self.ramNum = self.rom[0x0149]
+			self.ramSize = ramLUT[self.ramNum]
 			print(self.ramSize)
 			for i = 0x00,self.ramSize-1 do--persistant storage for saves and such
 				self.eRam[i] = 0
+			end
+			self.title = ""
+			for i = 0x0134,0x0143 do
+				if self.rom[i] == 0 then break end
+				self.title = self.title..string.char(self.rom[i])
 			end
 
 
@@ -114,6 +121,12 @@ local function mmu(file,testing,state)
 				if #self.rom > 102400 then self.bigRom = true end
 			elseif mbt == 1 then --MBC1
 				self.mbcType = 1
+				--if #self.rom > 102400 then self.bigRom = true end
+			elseif mbt == 25 then --MBC5
+				self.mbcType = 5
+				--if #self.rom > 102400 then self.bigRom = true end
+			elseif mbt == 27 then --MBC5+Ram+Battery
+				self.mbcType = 5
 				--if #self.rom > 102400 then self.bigRom = true end
 			else
 				error(string.format("MBC type %s not implemented",mbt))
@@ -194,6 +207,15 @@ local function mmu(file,testing,state)
 				if mb == 0 then mb = 1 end
 				adr = addr + (0x4000*(mb-1))
 				return self.rom[adr]
+			elseif self.mbcType == 5 then
+				local adr = addr
+				local mb = bit.band(self.memBank,getBits(#self.rom))
+				--if mb == 0 then mb = 1 end
+				--print(mb)
+				--print(self.cpu.PC)
+				--error()
+				adr = addr + (0x4000*(mb-1))
+				return self.rom[adr]
 			end
 		elseif addr >=0x8000 and addr <= 0x9FFF then--gpu memory
 			return self.gpu.vram[bit.band(addr,0x1FFF)]
@@ -211,6 +233,8 @@ local function mmu(file,testing,state)
 				end
 			elseif self.mbcType == 3 and self.eRamEnable then
 				return self.eRam[(addr-0xA000)+(self.ramBank*0x2000)]--todo RTC
+			elseif self.mbcType == 5 and self.eRamEnable then
+				return self.eRam[(addr-0xA000)+(self.ramBank*0x2000)]
 			else
 				return 0xFF
 			end--[[
@@ -253,16 +277,7 @@ local function mmu(file,testing,state)
 			elseif addr >= 0xFF10 and addr <= 0xFF3F then
 				return 0 --stub, fix when impl audio
 			elseif addr == 0xFF40 then--LCD control
-				local val = 0
-				val = val + (self.gpu.switchbg and 1 or 0)
-				val = val + (self.gpu.objEnable and 2 or 0)
-				val = val + (self.gpu.objSize and 4 or 0)
-				val = val + (self.gpu.bgmap and 8 or 0)
-				val = val + (self.gpu.bgtile and 16 or 0)
-				val = val + (self.gpu.winEnable and 32 or 0)
-				val = val + (self.gpu.winMap and 64 or 0)
-				val = val + (self.gpu.switchlcd and 128 or 0)
-				return val
+				return self.gpu.lcdc
 			elseif addr == 0xFF41 then
 				return bit.bor(self.gpu.STAT,bit.band(self.gpu.lineMode,0x3))
 			elseif addr == 0xFF42 then
@@ -271,6 +286,7 @@ local function mmu(file,testing,state)
 				return self.gpu.scrollX
 			elseif addr == 0xFF44 then
 				--return 0x90
+				--print("read line",self.gpu.line,self.cpu.PC)
 				return self.gpu.line
 			elseif addr == 0xFF45 then
 				return self.gpu.LYC
@@ -284,6 +300,8 @@ local function mmu(file,testing,state)
 				return self.gpu.winY
 			elseif addr == 0xFF4B then
 				return self.gpu.winX
+			elseif addr == 0xFF4D then
+				return 0xFF
 			end
 		elseif addr >= 0xFF80 and addr <= 0xFFFF then
 			--print("from zero page")
@@ -291,21 +309,22 @@ local function mmu(file,testing,state)
 			return self.zeroPage[addr-0xFF80]
 		end
 		print(string.format("unhandled mmu read at address 0x%02x",addr))
-		return 0
+		--error(string.format("unhandled mmu read at address 0x%02x",addr))
+		return 0xff
 	end
 
 
 
 
 	function self.setByte(byte,addr)
-		--print(string.format("set byte addr: 0x%x(%d) value: 0x%x(%d)",addr,addr,byte,byte))
+		--print(string.format("set byte addr: 0x%x(%d) value: 0x%x(%d) PC: 0x%02x mb: %d",addr,addr,byte,byte,self.cpu.PC,self.memBank))
 		if testing then
 			self.testingram[addr] = byte
 			return
 		end
 		if addr >= 0x0000 and addr <= 0x1FFF then--ram enable/disable
 			--print("ram enable")
-			if self.mbcType == 3 or self.mbcType == 1 then
+			if (self.mbcType == 3) or (self.mbcType == 1) or (self.mbcType == 5) then
 				if bit.band(0x0F,byte) == 0x0A then
 					--print("ram enable",byte)
 					self.eRamEnable = true
@@ -324,12 +343,16 @@ local function mmu(file,testing,state)
 				--print("Set memory bank",bit.band(0x7F,byte),byte)
 				self.memBank = bit.band(0x7F,byte)--mbc3
 				--if self.memBank == 0 then self.memBank = 1 end--?
+			elseif self.mbcType == 5  and addr <= 0x2FFF then
+				self.memBank = bit.band(0xFF,byte)--mbc5
+			elseif self.mbcType == 5  and addr >= 0x3000 then
+				self.memBank = bit.bor(bit.band(self.memBank,0xFF),bit.lshift(bit.band(0x01,byte),8))--mbc5 upper bits
 			end--mbc3
 		elseif addr >= 0x4000 and addr <= 0x5FFF then --ram bank number BANK2
 			--if byte ~=0 then error("not yet implemented") end
-			if self.mbcType == 1 then
+			if self.mbcType == 1 or self.mbcType == 5 then
 				if self.bigRom then
-					--print("bigmode",byte)
+					print("bigmode",byte)
 					--print(self.memBank)
 					--print("setting ram bank # ",byte)
 					self.ramBank = bit.band(0x03,byte)
@@ -338,6 +361,9 @@ local function mmu(file,testing,state)
 				else
 					self.ramBank = bit.band(0x03,byte)
 					self.memBank = bit.bor(bit.band(self.memBank,0x1F),bit.lshift(bit.band(0x03,byte),5))--mbc1
+				end
+				if self.ramNum == 2 then
+					self.ramBank = 0--we only have one ram page, don't do anything
 				end
 			elseif self.mbcType == 3 then
 				if byte >= 0x08 and byte <= 0x0C then
@@ -367,6 +393,9 @@ local function mmu(file,testing,state)
 		elseif addr >= 0xA000 and addr <= 0xBFFF then
 			if self.rtcEn > 0 then return end
 			if self.mbcType == 3 and self.eRamEnable then
+				self.eRam[(addr-0xA000)+(self.ramBank*0x2000)] = byte
+			end
+			if self.mbcType == 5 and self.eRamEnable then
 				self.eRam[(addr-0xA000)+(self.ramBank*0x2000)] = byte
 			end
 			if self.mbcType == 1 and self.eRamEnable then
@@ -420,6 +449,7 @@ local function mmu(file,testing,state)
 				self.gpu.winMap    = bit.band(byte,bit.lshift(1,6)) > 0
 				self.gpu.switchlcd = bit.band(byte,bit.lshift(1,7)) > 0
 				self.gpu.lcdc = byte
+				print(self.gpu.frames,byte)
 			elseif addr == 0xFF41 then--LCD STAT register
 				self.gpu.STAT = bit.bor(bit.band(byte,0xFC),self.gpu.STAT)--bits 0-2 are read only
 			elseif addr == 0xFF42 then
@@ -430,6 +460,7 @@ local function mmu(file,testing,state)
 				self.gpu.LYC = byte
 			elseif addr == 0xFF46 then--OAM DMA write https://gbdev.io/pandocs/OAM_DMA_Transfer.html#oam-dma-transfer
 				--todo DMA bus conflicts: cpu can only read from HRAM
+				--print(string.format("0x%02x",bit.lshift(byte,8)))
 				for i = 0,159 do
 					local b = self.getByte(bit.lshift(byte,8)+i)
 					self.setByte(b,0xFE00+i)
@@ -505,6 +536,7 @@ local function mmu(file,testing,state)
 			end
 		else
 			print(string.format("unhandled mmu write at address 0x%02x value: 0x%02x",addr,byte))
+			error()
 		end
 	end
 	function self.getSignedByte(addr,signExtend)

@@ -53,7 +53,7 @@ local function CPU(testing, state, filename)
 	self.gpu = gpu
 	self.joy = joy
 	self.timer = timer
-	--self.mem.cpu = self
+	self.mem.cpu = self
 	self.gpu.mmu = mem
 	self.timer.mmu = mem
 	self.mem.timer = timer

@@ -84,7 +84,7 @@ local function updateMode1(dt)
 				savestr = savestr..string.char(gbCPU.mem.eRam[i])
 			end
 			--print(#savestr)
-			local _,_,o = string.find(gbCPU.mem.fn,"roms/(.+).gb$")
+			local _,_,o = string.find(gbCPU.mem.fn,"/(.+).gb$")
 			--print(s,e,o,t,th)
 			love.filesystem.write(o..".save",savestr)
 			--print(o..".save",gbCPU.mem.ramSize,#savestr)
@@ -94,7 +94,7 @@ local function updateMode1(dt)
 
 	angle = angle + dt * 3
 
-	love.window.setTitle(love.timer.getFPS() .. " FPS")
+	love.window.setTitle(gbCPU.mem.fn .. " " .. love.timer.getFPS() .. " FPS")
 
 	function drawTile(t, offx, offy)
 		for y = 1, 8 do
@@ -143,8 +143,9 @@ local function updateMode1(dt)
 		end
 		love.graphics.setCanvas()
 
-		Slab.BeginWindow("lcd", { Title = "LCD", Y = 195, DisableDocks = { "Left", "Right", "Bottom" } }) --,AllowResize = true,AutoSizeWindow = false})
-		Slab.Image("img", { Image = lcdCanvas, Scale = 4 })
+		--Slab.BeginWindow("lcd", { Title = "LCD", Y = 195, DisableDocks = { "Left", "Right", "Bottom" } }) --,AllowResize = true,AutoSizeWindow = false})
+		Slab.BeginWindow("lcd", { Title = gbCPU.mem.title, Y = 195, DisableDocks = { "Left", "Right", "Bottom" } }) --,AllowResize = true,AutoSizeWindow = false})
+		Slab.Image("img", { Image = lcdCanvas, Scale = 2 })
 		Slab.EndWindow()
 	end
 
@@ -259,13 +260,23 @@ local function updateMode1(dt)
 		Slab.Text("GPU Line: " .. tostring(gbCPU.gpu.line))
 		Slab.Text("WIN Line: " .. tostring(gbCPU.gpu.wLine))
 		Slab.Text("LCDC " .. string.format("0x%02x", gbCPU.gpu.lcdc))
+		--[[
+		Slab.Text("LCDC.0 " .. tostring(gbCPU.gpu.switchbg))
 		Slab.Text("LCDC.1 " .. tostring(gbCPU.gpu.objEnable))
-		Slab.Text("LCDC.2 " .. tostring(gbCPU.gpu.switchbg))
 		Slab.Text("LCDC.2 " .. tostring(gbCPU.gpu.objSize))
 		Slab.Text("LCDC.3 " .. tostring(gbCPU.gpu.bgmap))
 		Slab.Text("LCDC.4 " .. tostring(gbCPU.gpu.bgtile))
 		Slab.Text("LCDC.5 " .. tostring(gbCPU.gpu.winEnable))
-		Slab.Text("")
+		Slab.Text("LCDC.6 " .. tostring(gbCPU.gpu.winMap))
+		Slab.Text("LCDC.7 " .. tostring(gbCPU.gpu.switchlcd))]]
+		Slab.Text("Bg/win:   " .. tostring(gbCPU.gpu.switchbg))
+		Slab.Text("Obj en:   " .. tostring(gbCPU.gpu.objEnable))
+		Slab.Text("Obj size: " .. tostring(gbCPU.gpu.objSize))
+		Slab.Text("bg map:   " .. tostring(gbCPU.gpu.bgmap))
+		Slab.Text("bg & win: " .. tostring(gbCPU.gpu.bgtile))
+		Slab.Text("win en:   " .. tostring(gbCPU.gpu.winEnable))
+		Slab.Text("win map:  " .. tostring(gbCPU.gpu.winMap))
+		Slab.Text("ppu en:   " .. tostring(gbCPU.gpu.switchlcd))
 		Slab.EndWindow()
 	end
 
@@ -314,7 +325,7 @@ local function updateMode1(dt)
 			local f = love.timer.getTime()
 			--step until breakpoint
 			if breakPointList.num and breakPointList.num > 0 then
-				for _ = 1, 30000000 do
+				for _ = 1, 300000 do
 					--gbCPU.executeInstruction()
 					file:write(string.format(
 						"A: %02x F: %02x B: %02x C: %02x D: %02x E: %02x H: %02x L: %02x SP: %04x PC: 00:%04x \n",
@@ -469,7 +480,8 @@ local function updateMode1(dt)
 				by1 = (memoffs - (i - 1) * 2) + 1
 				by2 = memoffs - (i - 1) * 2
 			end
-			Slab.Text(string.upper(string.format("0x%02x%02x", gbCPU.mem.getByte(by1),gbCPU.mem.getByte(by2))))
+			--print(memoffs,i,gbCPU.SP,by1,by2)
+			if by1 >= 0 and by2 >= 0 then Slab.Text(string.upper(string.format("0x%02x%02x", gbCPU.mem.getByte(by1),gbCPU.mem.getByte(by2)))) end
 		end
 
 		Slab.EndWindow()
@@ -899,7 +911,7 @@ local function setupMode1(fn)
 
 	gbCPU = cpu(nil, nil, fn)
 
-	local _,_,o = string.find(gbCPU.mem.fn,"roms/(.+).gb$")
+	local _,_,o = string.find(gbCPU.mem.fn,"/(.+).gb$")
 	if love.filesystem.getInfo(o..".save") then
 		print("loading save")
 		local sav,siz = love.filesystem.read(o..".save")
@@ -967,6 +979,24 @@ local function setupMode1(fn)
 		{ 0.3, 0.3, 0.3 },
 		{ 0,   0,   0 }
 	}
+
+	--#081820
+	--#346856
+	--#88c070
+	--#e0f8d0
+
+	--[[ bgb palette
+	colorPalette = {
+		{0xe0,0xf8,0xd0},
+		{0x88,0xc0,0x70},
+		{0x34,0x68,0x56},
+		{0x08,0x18,0x20}
+	}
+	for t = 1,4 do
+		for i = 1,3 do
+			colorPalette[t][i] = colorPalette[t][i]/255
+		end
+	end]]
 end
 
 local function setupMode0()
@@ -1000,7 +1030,7 @@ local function updateMode0(dt)
 		Slab.EndMainMenuBar()
 	end
 
-	Slab.BeginWindow("File Chooser", { Title = "Pick rom file", AutoSizeWindow = false })
+	Slab.BeginWindow("File Chooser", { Title = "Pick rom file", AutoSizeWindow = false ,W = 600,H = 600})
 	local w, h = Slab.GetWindowSize()
 	--Slab.BeginListBox('File chooser', { W = w - 10, H = h - 10 })
 	Slab.BeginListBox('File chooser', { StretchW = true, StretchH = true, Clear = Changed })
@@ -1074,6 +1104,9 @@ local function kpmode1(k)
 		mode = 0
 		setupMode0()
 	end
+	--if k == "e" then
+	--	 gbCPU.mem.setByte(0xc3,0xff40)
+	--end
 
 	if k == "space" then
 		--breaking = not breaking

@@ -39,6 +39,7 @@ local function joy()
 		else
 			return 0xCF
 		end
+		--return 0xCF
 	end
 
 	self.reset()

@@ -1,6 +1,6 @@
 local function timer()
 	local self = {}
-	
+
 	function self.reset()
 		self.clock = 0
 		self.lastBit = 0
@@ -10,9 +10,9 @@ local function timer()
 		self.TMA = 0
 		self.TIMA = 0
 	end
-	
+
 	--todo If a TMA write is executed on the same cycle as the content of TMA is transferred to TIMA due to a timer overflow, the old value is transferred to TIMA.
-	
+
 	function self.inc()
 		self.rc = false
 		if self.irq > 0 then
@@ -25,7 +25,7 @@ local function timer()
 		end
 		self.updateClock(bit.band(self.clock+1,0xFFFF))
 	end
-	
+
 	function self.updateClock(c)
 		self.clock = c
 		local thisBit = 0
@@ -38,13 +38,13 @@ local function timer()
 		self.detectEdge(self.lastBit,thisBit)
 		self.lastBit = thisBit
 	end
-	
+
 	function self.update(dt)
 		for i = 1,dt do
 			self.inc()
 		end
 	end
-	
+
 	function self.wb(b,a)
 		if a == 0xFF04 then
 			self.updateClock(0)
@@ -64,7 +64,7 @@ local function timer()
 			self.TAC = b
 		end
 	end
-	
+
 	function self.detectEdge(b,a)
 		if (b == 1) and (a == 0) then
 			self.TIMA = bit.band(self.TIMA+1,0xFF)
@@ -73,7 +73,7 @@ local function timer()
 			end
 		end
 	end
-	
+
 	function self.rb(b)
 		--print("read",b)
 		if b == 0xFF04 then
@@ -83,7 +83,7 @@ local function timer()
 			return self.TIMA
 		end
 		if b == 0xFF06 then
-			return self.TMA 
+			return self.TMA
 		end
 		if b == 0xFF07 then
 			return bit.bor(self.TAC,0xF8)

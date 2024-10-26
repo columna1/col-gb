@@ -3,14 +3,14 @@ local function gen(file)
 	if not file then error("to file to gen inst from") end
 	local f = io.open(file,"r")
 	if not f then error("could not open inst file") end
-	
+
 	local output = ""
 	local output2 = ""
 	local funcs = {}
 	local regs = {}
 	local ops = {}
 	local ops2 = {}
-	
+
 	function printTable(tabl, wid)
 		if not wid then wid = 1 end
 		for i,v in pairs(tabl) do
@@ -22,10 +22,10 @@ local function gen(file)
 				print(string.rep(" ", wid * 3) .. i .. " = \"" .. v .. "\"")
 			elseif type(v) == "number" then
 				print(string.rep(" ", wid * 3) .. i .. " = " .. v)
-			end 
-		end 
+			end
+		end
 	end
-	
+
 	for line in f:lines() do
 		--check for state change
 		--print(line)
@@ -61,7 +61,7 @@ local function gen(file)
 					local issep = false
 					for s = 1,#sep do
 						if sep[s] == symb then
-							issep = true 
+							issep = true
 						end
 					end
 					if symb == ":" then
@@ -109,7 +109,7 @@ local function gen(file)
 				if lineState == 0 then
 					local issep = false
 					if symb == ":" then
-						issep = true 
+						issep = true
 						lineState = 1
 					end
 					if not issep then
@@ -218,7 +218,7 @@ local function gen(file)
 		end
 		::CONTINUE::
 	end
-	
+
 	--printTable(funcs)
 	--print("aa")
 	--printTable(regs)
@@ -237,9 +237,9 @@ local function gen(file)
 		end
 		print(s)
 	end
-	
+
 	output = output.."instructions =  {\nfunction() cycles = cycles + 4 end,--no-op [0]\n"
-	
+
 	for i = 1,255 do
 		if ops[i] then
 			local out = ""
@@ -248,7 +248,7 @@ local function gen(file)
 			while #ops[i] > 0 do
 				local cop = table.remove(ops[i],1)
 				local found = false
-				
+
 				local function sub(token)
 					--print("------------SUB------------")
 					--print("TOKEN ",token)
@@ -305,12 +305,12 @@ local function gen(file)
 										end
 									end
 								end
-								
+
 								for ii = 1,#tr do
 									table.remove(ops[i],1)
 								end
 							end
-							
+
 							found=true
 							return str
 						end
@@ -324,7 +324,7 @@ local function gen(file)
 					end
 					error("could not find token \""..token.."\"")
 				end
-				
+
 				if type(cop) == "table" then
 					--print("cop")
 					--printTable(cop)
@@ -344,9 +344,9 @@ local function gen(file)
 		end
 	end
 	output = output.."}"
-	
+
 	output2 = output2.."instructionsCB =  {\n"
-	
+
 	for i = 0,255 do
 		if ops2[i] then
 			local out = ""
@@ -356,14 +356,14 @@ local function gen(file)
 				local cop = table.remove(ops2[i],1)
 				--print(cop[1])
 				local found = false
-				
+
 				local function sub(token)
 					--print("------------SUB------------")
 					--print("TOKEN ",token)
 					for f = 1,#funcs do
 						if funcs[f][1] == token then
 							--print("FOUND",token)
-							
+
 							local len = 0
 							local str = ""
 							if #funcs[f] == 4 then
@@ -405,12 +405,12 @@ local function gen(file)
 										str = str:sub(1,s-1)..sub(token[1])..str:sub(e+1)
 									end
 								end
-								
+
 								for ii = 1,#tr do
 									table.remove(ops2[i],1)
 								end
 							end
-							
+
 							found=true
 							return str
 						end
@@ -424,7 +424,7 @@ local function gen(file)
 					end
 					error("could not find token \""..token.."\"")
 				end
-				
+
 				if type(cop) == "table" then
 					--print("cop")
 					--printTable(cop)
@@ -444,7 +444,7 @@ local function gen(file)
 		end
 	end
 	output2 = output2.."}"
-	
+
 	--error()
 	return output,output2
 end
